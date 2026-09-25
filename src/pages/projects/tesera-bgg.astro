@@ -1,0 +1,105 @@
+---
+import Base from '../../layouts/Base.astro';
+
+const codeUrl = 'https://github.com/Viktor-VK/portfolio'; // TODO: ссылка на папку исследования
+---
+
+<Base
+  title="Tesera vs BoardGameGeek"
+  description="Чем оценки настольных игр на Tesera.ru отличаются от BoardGameGeek: мини-исследование топ-50 игр."
+>
+  <article>
+    <p class="muted crumbs"><a href="/#projects">Проекты</a> / исследование</p>
+    <span class="badge wip">в работе</span>
+    <h1>Tesera vs BoardGameGeek</h1>
+    <p class="lead">
+      Совпадают ли вкусы российского сообщества настольщиков с мировыми? Сравниваю оценки топ-50 игр
+      Tesera.ru с оценками тех же игр на BoardGameGeek.
+    </p>
+
+    <dl class="facts">
+      <div><dt>Выборка</dt><dd>топ-50 Tesera</dd></div>
+      <div><dt>Наблюдений</dt><dd>4 260 строк</dd></div>
+      <div><dt>Источники</dt><dd>API + HTML Tesera</dd></div>
+      <div><dt>Срез</dt><dd>сентябрь 2026</dd></div>
+    </dl>
+
+    <h2>Ключевые выводы</h2>
+    <div class="placeholder">3–4 инсайта с интерактивными графиками появятся после анализа данных.</div>
+
+    <h2>Данные и методика</h2>
+    <ul>
+      <li>
+        Список игр — «Топ 100 Тесеры» (сортировка по байесовскому рейтингу), первые 50 позиций, включая
+        дополнения.
+      </li>
+      <li>
+        Tesera: рейтинги, число оценок, суб-рейтинги (геймплей, глубина, оригинальность, реализация),
+        аудитория (владеют / играли / хотят сыграть), жанры, темы, авторы, издатели, награды.
+      </li>
+      <li>
+        BoardGameGeek: средний рейтинг, geek rating и число оценок — в копии, которую Tesera хранит для каждой
+        игры вместе с идентификатором BGG.
+      </li>
+      <li>Данные собраны в «узкую» таблицу: одна строка — одно значение одного измерения игры.</li>
+    </ul>
+
+    <h2>Ограничения</h2>
+    <ul>
+      <li>50 игр — это топ, а не случайная выборка: выводы про лучшие игры, а не про всю базу.</li>
+      <li>Дата синхронизации BGG-полей на Tesera неизвестна — возможен небольшой лаг.</li>
+      <li>Теги Tesera проставляют пользователи, поэтому они неполные и не заменяют механики BGG.</li>
+    </ul>
+
+    <p class="actions">
+      <a class="btn" href={codeUrl}>Код и данные на GitHub</a>
+    </p>
+  </article>
+</Base>
+
+<style>
+  article {
+    max-width: 46rem;
+  }
+
+  .crumbs {
+    margin: 0 0 12px;
+    font-size: 0.9rem;
+  }
+
+  h1 {
+    margin-top: 12px;
+  }
+
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin: 28px 0 0;
+  }
+
+  .facts div {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+  }
+
+  dt {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  dd {
+    margin: 2px 0 0;
+    font-weight: 600;
+  }
+
+  li {
+    margin-bottom: 6px;
+  }
+
+  .actions {
+    margin-top: 32px;
+  }
+</style>

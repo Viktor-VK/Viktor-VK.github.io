@@ -1,0 +1,60 @@
+---
+import Base from '../layouts/Base.astro';
+import ProjectCard from '../components/ProjectCard.astro';
+import { profile } from '../data/profile';
+import { projects } from '../data/projects';
+
+const contacts = [
+  { label: 'Telegram', href: profile.contacts.telegram },
+  { label: 'Email', href: profile.contacts.email },
+  { label: 'Резюме на hh.ru', href: profile.contacts.hh },
+  { label: 'GitHub', href: profile.github },
+].filter((c) => c.href);
+---
+
+<Base>
+  <section class="hero">
+    <span class="badge ok">{profile.status}</span>
+    <h1>{profile.name} — {profile.role}</h1>
+    {profile.about.map((p) => <p class="lead">{p}</p>)}
+    <ul class="tags">
+      {profile.skills.map((s) => <li>{s}</li>)}
+    </ul>
+  </section>
+
+  <section id="projects">
+    <h2>Проекты</h2>
+    <div class="grid">
+      {projects.map((p) => <ProjectCard project={p} />)}
+    </div>
+  </section>
+
+  <section id="contacts">
+    <h2>Контакты</h2>
+    <div class="contacts">
+      {contacts.map((c) => <a class="btn" href={c.href!}>{c.label}</a>)}
+    </div>
+  </section>
+</Base>
+
+<style>
+  .hero .lead {
+    margin: 0.5rem 0;
+  }
+
+  .hero h1 {
+    margin-top: 12px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+    gap: 16px;
+  }
+
+  .contacts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+</style>

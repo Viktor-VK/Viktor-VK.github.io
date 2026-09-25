@@ -1,0 +1,97 @@
+---
+import '../styles/global.css';
+import { profile } from '../data/profile';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const { title, description = profile.tagline } = Astro.props;
+const pageTitle = title ? `${title} — ${profile.name}` : `${profile.name} — ${profile.role}`;
+const path = Astro.url.pathname;
+---
+
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <link rel="canonical" href={new URL(path, Astro.site)} />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container bar">
+        <a class="logo" href="/">{profile.name}</a>
+        <nav>
+          <a href="/#projects" class:list={{ active: path.startsWith('/projects') }}>Проекты</a>
+          <a href="/#contacts">Контакты</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="container">
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <div class="container bar">
+        <span class="muted">© {new Date().getFullYear()} {profile.name}</span>
+        <a href={profile.github}>GitHub</a>
+      </div>
+    </footer>
+  </body>
+</html>
+
+<style>
+  .site-header {
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 60px;
+  }
+
+  .logo {
+    font-weight: 700;
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  nav {
+    display: flex;
+    gap: 20px;
+  }
+
+  nav a {
+    color: var(--muted);
+    text-decoration: none;
+  }
+
+  nav a:hover,
+  nav a.active {
+    color: var(--text);
+  }
+
+  main {
+    padding-top: 40px;
+    padding-bottom: 64px;
+  }
+
+  .site-footer {
+    border-top: 1px solid var(--border);
+    font-size: 0.9rem;
+  }
+</style>

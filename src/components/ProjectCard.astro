@@ -1,0 +1,66 @@
+---
+import type { Project } from '../data/projects';
+
+interface Props {
+  project: Project;
+}
+
+const { project } = Astro.props;
+---
+
+<article class="card">
+  <div class="head">
+    <h3>
+      {project.page ? <a href={project.page}>{project.title}</a> : project.title}
+    </h3>
+    {project.status === 'wip' && <span class="badge wip">в работе</span>}
+  </div>
+  <p class="muted">{project.summary}</p>
+  <ul class="tags">
+    {project.tags.map((t) => <li>{t}</li>)}
+  </ul>
+  <div class="links">
+    {project.page && <a href={project.page}>Читать исследование →</a>}
+    {project.code && <a href={project.code}>Код на GitHub →</a>}
+  </div>
+</article>
+
+<style>
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  h3 a {
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  h3 a:hover {
+    color: var(--accent);
+  }
+
+  p {
+    margin: 0;
+    flex-grow: 1;
+  }
+
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 14px;
+    font-size: 0.95rem;
+  }
+</style>
