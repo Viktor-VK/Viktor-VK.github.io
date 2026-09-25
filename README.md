@@ -10,6 +10,6 @@ npm run dev      # http://localhost:4321
 npm run build    # сборка в dist/
 ```
 
-- `src/data/profile.ts` — имя, описание, контакты
-- `src/data/projects.ts` — карточки проектов на главной
-- `src/pages/projects/` — страницы исследований
+- `src/data/profile.ts` - имя, описание, контакты
+- `src/data/projects.ts` - карточки проектов на главной
+- `src/pages/projects/` - страницы исследований
