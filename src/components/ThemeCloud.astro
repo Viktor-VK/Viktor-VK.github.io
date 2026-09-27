@@ -1,0 +1,62 @@
+---
+// Облако тем: статичный SVG, раскладка посчитана заранее в analysis.py (wordcloud_layout.py).
+interface Word {
+  word: string;
+  count: number;
+  other: number;
+  x: number;
+  y: number;
+  fs: number;
+  lean: string;
+}
+interface Props {
+  words: Word[];
+  width: number;
+  height: number;
+  label: string;
+  thisName: string;
+  otherName: string;
+}
+const { words, width, height, label, thisName, otherName } = Astro.props;
+---
+
+<svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label} class="cloud">
+  {
+    words.map((w) => (
+      <text x={w.x} y={w.y} font-size={w.fs} class={`lean-${w.lean}`} text-anchor="middle" dominant-baseline="central">
+        <title>{`${w.word}: ${thisName} - ${w.count}, ${otherName} - ${w.other}`}</title>
+        {w.word}
+      </text>
+    ))
+  }
+</svg>
+
+<style>
+  .cloud {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  text {
+    font-family: var(--font);
+    font-weight: 600;
+    cursor: default;
+  }
+
+  text:hover {
+    fill: var(--text);
+  }
+
+  .lean-tesera {
+    fill: var(--series-tesera);
+  }
+
+  .lean-bgg {
+    fill: var(--series-bgg);
+  }
+
+  .lean-even {
+    fill: var(--muted);
+  }
+</style>

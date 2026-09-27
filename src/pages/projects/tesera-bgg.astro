@@ -1,10 +1,13 @@
 ---
 import Base from '../../layouts/Base.astro';
 import data from '../../data/tesera-bgg.json';
+import ThemeCloud from '../../components/ThemeCloud.astro';
 
 const codeUrl = 'https://github.com/Viktor-VK/portfolio/tree/master/%D0%A1%D1%80%D0%B0%D0%B2%D0%BD%D0%B5%D0%BD%D0%B8%D0%B5%20%D1%80%D0%B5%D0%B9%D1%82%D0%B8%D0%BD%D0%B3%D0%BE%D0%B2%20Tesera%20%D0%B8%20BGG';
 
-const { meta, selection, year, genre, additions, subratings, publisher } = data;
+const { meta, selection, year, genre, themes, additions, subratings, publisher } = data;
+const moreT = themes.more_tesera.slice(0, 4);
+const moreB = themes.more_bgg.slice(0, 4);
 const subSorted = [...subratings.items].sort((a, b) => b.rho_others - a.rho_others);
 const subWeakest = subSorted[subSorted.length - 1];
 const subTopMean = [...subratings.items].sort((a, b) => b.mean - a.mean)[0];
@@ -61,6 +64,7 @@ const hw = publisher.top[0];
           Российское сообщество выше оценивает военные ({signed(war.mean)}) и экономические ({signed(eco.mean)})
           игры, ниже - компанейские ({signed(party.mean)}).
         </li>
+        <li>По темам топ Tesera мрачнее: ужасы, магия, монстры, политика. Топ BGG спокойнее: хозяйство, природа, транспорт.</li>
         <li>Дополнения на Tesera оценивают сдержаннее, чем базовые игры, - в обеих выборках.</li>
         <li>Игру на Tesera оценивают скорее целиком: высокий балл по одному критерию обычно тянет за собой и остальные.</li>
       </ol>
@@ -148,13 +152,51 @@ const hw = publisher.top[0];
     </figure>
 
     <!-- 4 -->
-    <h2>4. Дополнения оценивают сдержаннее</h2>
+    <h2>4. Темы: ужасы и магия против хозяйства и природы</h2>
+    <p>
+      Сравнение тем (сеттингов) в топ-{themes.top_n} каждой площадки продолжает картину жанров. В топе Tesera заметно чаще встречаются мрачные и приключенческие темы: ужасы, магия, монстры, а также политика. Топ BGG нейтральнее и спокойнее: сельское хозяйство, транспорт, древний мир, животные и природа - типичные темы «евро»-игр. Фэнтези и космос лидируют в обоих топах.
+    </p>
+    <div class="card table-card">
+      <div class="lean-cols">
+        <table class="data">
+          <thead><tr><th>Чаще в топе Tesera</th><th class="num">Tesera</th><th class="num">BGG</th></tr></thead>
+          <tbody>
+            {moreT.map((r) => <tr><td><span class="dot dot-t"></span>{r.theme}</td><td class="num"><strong>{r.tesera}</strong></td><td class="num">{r.bgg}</td></tr>)}
+          </tbody>
+        </table>
+        <table class="data">
+          <thead><tr><th>Чаще в топе BGG</th><th class="num">Tesera</th><th class="num">BGG</th></tr></thead>
+          <tbody>
+            {moreB.map((r) => <tr><td><span class="dot dot-b"></span>{r.theme}</td><td class="num">{r.tesera}</td><td class="num"><strong>{r.bgg}</strong></td></tr>)}
+          </tbody>
+        </table>
+      </div>
+      <p class="muted note">Число игр с темой в топ-{themes.top_n}. Темы указаны у {themes.tesera.with_theme} из {themes.tesera.games} игр топа Tesera и у {themes.bgg.with_theme} из {themes.bgg.games} игр топа BGG; у игры может быть несколько тем.</p>
+    </div>
+    <p>Полная картина - два облака в одном масштабе: одинаковое число игр даёт одинаковый размер слова.</p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Темы игр в топ-{themes.top_n} Tesera</strong>
+        <span class="muted"><span class="dot dot-t"></span>чаще в топе Tesera · <span class="dot dot-b"></span>чаще в топе BGG · <span class="dot dot-e"></span>примерно поровну. Наведите на слово - покажет число игр.</span>
+      </figcaption>
+      <ThemeCloud words={themes.tesera.cloud} width={themes.width} height={themes.height} label="Облако тем игр топа Tesera" thisName="топ Tesera" otherName="топ BGG" />
+    </figure>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Темы игр в топ-{themes.top_n} BGG</strong>
+        <span class="muted">Тот же масштаб и те же цвета.</span>
+      </figcaption>
+      <ThemeCloud words={themes.bgg.cloud} width={themes.width} height={themes.height} label="Облако тем игр топа BGG" thisName="топ BGG" otherName="топ Tesera" />
+    </figure>
+
+    <!-- 5 -->
+    <h2>5. Дополнения оценивают сдержаннее</h2>
     <p>
       В обеих выборках дополнения получают на Tesera относительно более низкие оценки, чем базовые игры. В топе Tesera разница с BGG у базовых игр {signed(additions.tesera_top.base)}, у дополнений {signed(additions.tesera_top.additions)}; в топе BGG - {signed(additions.bgg_top.base)} и {signed(additions.bgg_top.additions)} ({p(additions.bgg_top.p)}). Гипотеза: на BGG дополнения оценивают в основном преданные фанаты базовой игры, и их оценки выше.
     </p>
 
-    <!-- 5 -->
-    <h2>5. Игру оценивают целиком</h2>
+    <!-- 6 -->
+    <h2>6. Игру оценивают целиком</h2>
     <p>
       На Tesera игру оценивают по четырём критериям, а итоговая оценка - это их среднее (так у {num(subratings.avg_equals_mean_share * 100, 1)}% игр). Поэтому интересно не то, как критерии связаны с итогом (он из них и состоит), а как они связаны между собой. Связь заметная: попарно ρ от {num(subratings.pair_rho_min)} до {num(subratings.pair_rho_max)}. Если игре ставят высокий балл за геймплей, то, скорее всего, высоко оценят и остальное - впечатление от игры переносится на все критерии.
     </p>
@@ -172,7 +214,7 @@ const hw = publisher.top[0];
     </div>
     <p class="muted small">Связь суб-рейтинга со средним трёх остальных, корреляция Спирмена, n = {subratings.n}.</p>
 
-    <!-- 6 -->
+    <!-- 7 -->
     <h2>Что это значит для издателя: пример Hobby World</h2>
     <p>
       {hw.publisher} - самый частый издатель в объединённой выборке: {hw.games} игр из {meta.games_total} (дальше {publisher.top.slice(1, 3).map((x) => `${x.publisher} - ${x.games}`).join(', ')}). Из открытых данных Tesera для него можно извлечь сигнал спроса на вторичном рынке: сколько пользователей хотят купить игру и сколько её продают. Высокое соотношение - аргумент в пользу допечатки тиража.
@@ -457,6 +499,33 @@ const hw = publisher.top[0];
 
   .small {
     font-size: 0.85rem;
+  }
+
+  .lean-cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 8px 24px;
+  }
+
+  .dot {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    margin-right: 7px;
+    vertical-align: 1px;
+  }
+
+  .dot-t {
+    background: var(--series-tesera);
+  }
+
+  .dot-b {
+    background: var(--series-bgg);
+  }
+
+  .dot-e {
+    background: var(--muted);
   }
 
   .chart-card {
