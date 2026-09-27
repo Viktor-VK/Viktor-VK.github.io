@@ -19,7 +19,8 @@ const num = (x: number, d = 2) => x.toFixed(d).replace('.', ',');
 const signed = (x: number) => (x > 0 ? '+' : x < 0 ? '-' : '') + num(Math.abs(x));
 const pct = (x: number) => Math.round(x * 100) + '%';
 const p = (x: number) => (x < 0.001 ? 'p < 0,001' : 'p = ' + num(x, x < 0.01 ? 3 : 2));
-const snapshot = new Date(meta.snapshot).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+// «25 сент. 2026 г.» с неразрывными пробелами - дата не разрывается в карточке
+const snapshot = new Date(meta.snapshot).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }).replace(/ /g, ' ');
 
 const golden = year.by_period.filter((r) => r.period === '2000-2009' || r.period === '2010-2014');
 const fresh = year.by_period.filter((r) => r.period === '2020-2022' || r.period === '2023+');
@@ -451,6 +452,16 @@ const hw = publisher.top[0];
     margin: 2px 0 0;
     font-size: 1.15rem;
     font-weight: 700;
+  }
+
+  @media (max-width: 420px) {
+    .facts .card {
+      padding: 12px;
+    }
+
+    dd {
+      font-size: 1.05rem;
+    }
   }
 
   .summary ol {
