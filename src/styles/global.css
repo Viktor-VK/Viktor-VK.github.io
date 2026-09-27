@@ -1,20 +1,22 @@
-/* Тёмная тема в духе multiplatform.pro: сине-чёрный фон, бирюзовый акцент, Manrope */
+/* Две темы в духе multiplatform.pro: бирюзовый акцент, Manrope.
+   По умолчанию - как в системе (prefers-color-scheme); выбор пользователя - атрибут data-theme на <html>. */
 :root {
-  --bg: #080b10;
-  --surface: #101622;
-  --surface-2: #192230;
-  --text: #edf3f6;
-  --muted: #8c99a8;
-  --border: rgba(225, 238, 245, 0.08);
-  --accent: #4cc2e5;
-  --accent-ink: #071116;
-  --accent-soft: rgba(76, 194, 229, 0.12);
-  --ok: #5fd49a;
-  --ok-soft: rgba(95, 212, 154, 0.12);
-  --wip: #f0bf5a;
-  --wip-soft: rgba(240, 191, 90, 0.12);
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --surface-2: #eaeef3;
+  --text: #0f1720;
+  --muted: #5a6573;
+  --border: rgba(15, 23, 32, 0.1);
+  --grid: rgba(15, 23, 32, 0.08);
+  --accent: #0e86ad;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(14, 134, 173, 0.1);
+  --ok: #1a7f4e;
+  --ok-soft: rgba(26, 127, 78, 0.1);
+  --wip: #8a5a00;
+  --wip-soft: rgba(138, 90, 0, 0.1);
 
-  /* серии графиков (проверены на контраст и различимость при дальтонизме на --surface) */
+  /* серии графиков (проверены на контраст и различимость при дальтонизме в обеих темах) */
   --series-tesera: #2a9cc0;
   --series-bgg: #c47a22;
   --series-both: #8a66da;
@@ -23,6 +25,44 @@
   --maxw: 1040px;
   --font: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #080b10;
+    --surface: #101622;
+    --surface-2: #192230;
+    --text: #edf3f6;
+    --muted: #8c99a8;
+    --border: rgba(225, 238, 245, 0.08);
+    --grid: rgba(225, 238, 245, 0.07);
+    --accent: #4cc2e5;
+    --accent-ink: #071116;
+    --accent-soft: rgba(76, 194, 229, 0.12);
+    --ok: #5fd49a;
+    --ok-soft: rgba(95, 212, 154, 0.12);
+    --wip: #f0bf5a;
+    --wip-soft: rgba(240, 191, 90, 0.12);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #080b10;
+  --surface: #101622;
+  --surface-2: #192230;
+  --text: #edf3f6;
+  --muted: #8c99a8;
+  --border: rgba(225, 238, 245, 0.08);
+  --grid: rgba(225, 238, 245, 0.07);
+  --accent: #4cc2e5;
+  --accent-ink: #071116;
+  --accent-soft: rgba(76, 194, 229, 0.12);
+  --ok: #5fd49a;
+  --ok-soft: rgba(95, 212, 154, 0.12);
+  --wip: #f0bf5a;
+  --wip-soft: rgba(240, 191, 90, 0.12);
   color-scheme: dark;
 }
 

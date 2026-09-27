@@ -292,133 +292,140 @@ const hw = publisher.top[0];
 
   echarts.use([ScatterChart, BarChart, GridComponent, TooltipComponent, LegendComponent, MarkLineComponent, CanvasRenderer]);
 
-  const css = getComputedStyle(document.documentElement);
-  const v = (name: string) => css.getPropertyValue(name).trim();
-  const C = {
-    tesera: v('--series-tesera'),
-    bgg: v('--series-bgg'),
-    both: v('--series-both'),
-    text: v('--text'),
-    muted: v('--muted'),
-    grid: 'rgba(225, 238, 245, 0.07)',
-    surface: v('--surface-2'),
-    font: v('--font'),
-  };
-  const fmt = (x: number) => (x > 0 ? '+' : x < 0 ? '-' : '') + Math.abs(x).toFixed(2).replace('.', ',');
-
-  const base = {
-    textStyle: { fontFamily: C.font, color: C.muted },
-    tooltip: {
-      backgroundColor: C.surface,
-      borderColor: 'rgba(225, 238, 245, 0.12)',
-      textStyle: { color: C.text, fontFamily: C.font, fontSize: 13 },
-    },
-    animationDuration: 400,
-  };
-  const axis = {
-    axisLine: { lineStyle: { color: C.grid } },
-    axisTick: { show: false },
-    axisLabel: { color: C.muted },
-    splitLine: { lineStyle: { color: C.grid } },
-    nameTextStyle: { color: C.muted },
-  };
+  // все графики строятся из CSS-переменных темы; при смене темы пересоздаются
   const charts: echarts.ECharts[] = [];
-  const init = (id: string) => {
-    const c = echarts.init(document.getElementById(id)!);
-    charts.push(c);
-    return c;
-  };
 
-  // 1. Рассеяние
-  const groups = [
-    { key: 'tesera', name: 'Только в топе Tesera', color: C.tesera },
-    { key: 'bgg', name: 'Только в топе BGG', color: C.bgg },
-    { key: 'both', name: 'В обоих топах', color: C.both },
-  ];
-  const pts = data.selection.scatter as [number, number, string, string, number | null][];
-  const lo = Math.floor(Math.min(...pts.flatMap((p) => [p[0], p[1]])) * 2) / 2;
-  const hi = Math.ceil(Math.max(...pts.flatMap((p) => [p[0], p[1]])) * 2) / 2;
-  init('chart-scatter').setOption({
-    ...base,
-    legend: { top: 0, textStyle: { color: C.muted }, itemWidth: 10, itemHeight: 10 },
-    grid: { left: 48, right: 16, top: window.innerWidth < 560 ? 72 : 44, bottom: 48 },
-    tooltip: {
-      ...base.tooltip,
-      trigger: 'item',
-      formatter: (p: any) => {
-        const [b, t, title, , y] = p.data;
-        return `<b>${title}</b>${y ? ` (${y})` : ''}<br/>Tesera: ${t.toFixed(2).replace('.', ',')} · BGG: ${b
-          .toFixed(2)
-          .replace('.', ',')}<br/>Разница: ${fmt(t - b)}`;
+  function renderAll() {
+    charts.splice(0).forEach((c) => c.dispose());
+    const css = getComputedStyle(document.documentElement);
+    const v = (name: string) => css.getPropertyValue(name).trim();
+    const C = {
+      tesera: v('--series-tesera'),
+      bgg: v('--series-bgg'),
+      both: v('--series-both'),
+      text: v('--text'),
+      muted: v('--muted'),
+      grid: v('--grid'),
+      surface: v('--surface-2'),
+      font: v('--font'),
+    };
+    const fmt = (x: number) => (x > 0 ? '+' : x < 0 ? '-' : '') + Math.abs(x).toFixed(2).replace('.', ',');
+
+    const base = {
+      textStyle: { fontFamily: C.font, color: C.muted },
+      tooltip: {
+        backgroundColor: C.surface,
+        borderColor: v('--border'),
+        textStyle: { color: C.text, fontFamily: C.font, fontSize: 13 },
       },
-    },
-    xAxis: { ...axis, type: 'value', name: 'Оценка BGG', nameLocation: 'middle', nameGap: 30, min: lo, max: hi },
-    yAxis: { ...axis, type: 'value', name: 'Оценка Tesera', nameLocation: 'middle', nameGap: 34, min: lo, max: hi },
-    series: groups.map((g, i) => ({
-      name: g.name,
-      type: 'scatter',
-      symbolSize: 8,
-      data: pts.filter((p) => p[3] === g.key),
-      itemStyle: { color: g.color, opacity: 0.8, borderColor: v('--surface'), borderWidth: 1 },
-      emphasis: { itemStyle: { opacity: 1, borderColor: C.text, borderWidth: 2 } },
-      markLine:
-        i === 0
-          ? {
-              silent: true,
-              symbol: 'none',
-              lineStyle: { color: C.muted, type: 'dashed', width: 1 },
-              label: { formatter: 'оценки равны', color: C.muted, position: 'insideEndTop' },
-              data: [[{ coord: [lo, lo] }, { coord: [hi, hi] }]],
-            }
-          : undefined,
-    })),
-  });
+      animationDuration: 400,
+    };
+    const axis = {
+      axisLine: { lineStyle: { color: C.grid } },
+      axisTick: { show: false },
+      axisLabel: { color: C.muted },
+      splitLine: { lineStyle: { color: C.grid } },
+      nameTextStyle: { color: C.muted },
+    };
+    const init = (id: string) => {
+      const c = echarts.init(document.getElementById(id)!);
+      charts.push(c);
+      return c;
+    };
 
-  // 2 и 3. Столбцы с полярностью: выше на Tesera / выше на BGG
-  const polarityBar = (id: string, cats: string[], vals: number[], ns: number[], horizontal: boolean) => {
-    const catAxis = { ...axis, type: 'category', data: cats, splitLine: { show: false } };
-    const valAxis = { ...axis, type: 'value', axisLabel: { color: C.muted, formatter: (x: number) => fmt(x) } };
-    init(id).setOption({
+    // 1. Рассеяние
+    const groups = [
+      { key: 'tesera', name: 'Только в топе Tesera', color: C.tesera },
+      { key: 'bgg', name: 'Только в топе BGG', color: C.bgg },
+      { key: 'both', name: 'В обоих топах', color: C.both },
+    ];
+    const pts = data.selection.scatter as [number, number, string, string, number | null][];
+    const lo = Math.floor(Math.min(...pts.flatMap((p) => [p[0], p[1]])) * 2) / 2;
+    const hi = Math.ceil(Math.max(...pts.flatMap((p) => [p[0], p[1]])) * 2) / 2;
+    init('chart-scatter').setOption({
       ...base,
-      grid: horizontal ? { left: 110, right: 56, top: 8, bottom: 28 } : { left: 48, right: 16, top: 28, bottom: 32 },
+      legend: { top: 0, textStyle: { color: C.muted }, itemWidth: 10, itemHeight: 10 },
+      grid: { left: 48, right: 16, top: window.innerWidth < 560 ? 72 : 44, bottom: 48 },
       tooltip: {
         ...base.tooltip,
-        trigger: 'axis',
-        axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(225, 238, 245, 0.04)' } },
-        formatter: (ps: any) => {
-          const p = ps[0];
-          return `<b>${p.name}</b><br/>Tesera - BGG: ${fmt(p.value)}<br/>Игр: ${ns[p.dataIndex]}`;
+        trigger: 'item',
+        formatter: (p: any) => {
+          const [b, t, title, , y] = p.data;
+          return `<b>${title}</b>${y ? ` (${y})` : ''}<br/>Tesera: ${t.toFixed(2).replace('.', ',')} · BGG: ${b
+            .toFixed(2)
+            .replace('.', ',')}<br/>Разница: ${fmt(t - b)}`;
         },
       },
-      xAxis: horizontal ? valAxis : catAxis,
-      yAxis: horizontal ? catAxis : valAxis,
-      series: [
-        {
-          type: 'bar',
-          barMaxWidth: horizontal ? 18 : 44,
-          data: vals.map((x) => ({
-            value: x,
-            itemStyle: {
-              color: x >= 0 ? C.tesera : C.bgg,
-              borderRadius: horizontal ? (x >= 0 ? [0, 4, 4, 0] : [4, 0, 0, 4]) : x >= 0 ? [4, 4, 0, 0] : [0, 0, 4, 4],
-            },
-          })),
-          label: {
-            show: true,
-            position: horizontal ? 'right' : 'top',
-            color: C.text,
-            formatter: (p: any) => fmt(p.value),
+      xAxis: { ...axis, type: 'value', name: 'Оценка BGG', nameLocation: 'middle', nameGap: 30, min: lo, max: hi },
+      yAxis: { ...axis, type: 'value', name: 'Оценка Tesera', nameLocation: 'middle', nameGap: 34, min: lo, max: hi },
+      series: groups.map((g, i) => ({
+        name: g.name,
+        type: 'scatter',
+        symbolSize: 8,
+        data: pts.filter((p) => p[3] === g.key),
+        itemStyle: { color: g.color, opacity: 0.8, borderColor: v('--surface'), borderWidth: 1 },
+        emphasis: { itemStyle: { opacity: 1, borderColor: C.text, borderWidth: 2 } },
+        markLine:
+          i === 0
+            ? {
+                silent: true,
+                symbol: 'none',
+                lineStyle: { color: C.muted, type: 'dashed', width: 1 },
+                label: { formatter: 'оценки равны', color: C.muted, position: 'insideEndTop' },
+                data: [[{ coord: [lo, lo] }, { coord: [hi, hi] }]],
+              }
+            : undefined,
+      })),
+    });
+
+    // 2 и 3. Столбцы с полярностью: выше на Tesera / выше на BGG
+    const polarityBar = (id: string, cats: string[], vals: number[], ns: number[], horizontal: boolean) => {
+      const catAxis = { ...axis, type: 'category', data: cats, splitLine: { show: false } };
+      const valAxis = { ...axis, type: 'value', axisLabel: { color: C.muted, formatter: (x: number) => fmt(x) } };
+      init(id).setOption({
+        ...base,
+        grid: horizontal ? { left: 110, right: 56, top: 8, bottom: 28 } : { left: 48, right: 16, top: 28, bottom: 32 },
+        tooltip: {
+          ...base.tooltip,
+          trigger: 'axis',
+          axisPointer: { type: 'shadow', shadowStyle: { color: v('--grid') } },
+          formatter: (ps: any) => {
+            const p = ps[0];
+            return `<b>${p.name}</b><br/>Tesera - BGG: ${fmt(p.value)}<br/>Игр: ${ns[p.dataIndex]}`;
           },
         },
-      ],
-    });
-  };
+        xAxis: horizontal ? valAxis : catAxis,
+        yAxis: horizontal ? catAxis : valAxis,
+        series: [
+          {
+            type: 'bar',
+            barMaxWidth: horizontal ? 18 : 44,
+            data: vals.map((x) => ({
+              value: x,
+              itemStyle: {
+                color: x >= 0 ? C.tesera : C.bgg,
+                borderRadius: horizontal ? (x >= 0 ? [0, 4, 4, 0] : [4, 0, 0, 4]) : x >= 0 ? [4, 4, 0, 0] : [0, 0, 4, 4],
+              },
+            })),
+            label: {
+              show: true,
+              position: horizontal ? 'right' : 'top',
+              color: C.text,
+              formatter: (p: any) => fmt(p.value),
+            },
+          },
+        ],
+      });
+    };
 
-  const yr = data.year.by_period;
-  polarityBar('chart-year', yr.map((r) => r.period), yr.map((r) => r.mean), yr.map((r) => r.n), false);
-  const gn = data.genre;
-  polarityBar('chart-genre', gn.map((r) => r.genre), gn.map((r) => r.mean), gn.map((r) => r.n), true);
+    const yr = data.year.by_period;
+    polarityBar('chart-year', yr.map((r) => r.period), yr.map((r) => r.mean), yr.map((r) => r.n), false);
+    const gn = data.genre;
+    polarityBar('chart-genre', gn.map((r) => r.genre), gn.map((r) => r.mean), gn.map((r) => r.n), true);
+  }
 
+  renderAll();
+  window.addEventListener('themechange', renderAll);
   window.addEventListener('resize', () => charts.forEach((c) => c.resize()));
 </script>
 
