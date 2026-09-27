@@ -16,20 +16,22 @@ interface Props {
   label: string;
   thisName: string;
   otherName: string;
+  mobileMin?: number; // на узких экранах мелкие темы скрываются: иначе они нечитаемо мелкие
 }
-const { words, width, height, label, thisName, otherName } = Astro.props;
+const { words, width, height, label, thisName, otherName, mobileMin = 5 } = Astro.props;
 ---
 
 <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label} class="cloud">
   {
     words.map((w) => (
-      <text x={w.x} y={w.y} font-size={w.fs} class={`lean-${w.lean}`} text-anchor="middle" dominant-baseline="central">
+      <text x={w.x} y={w.y} font-size={w.fs} class:list={[`lean-${w.lean}`, { minor: w.count < mobileMin }]} text-anchor="middle" dominant-baseline="central">
         <title>{`${w.word}: ${thisName} - ${w.count}, ${otherName} - ${w.other}`}</title>
         {w.word}
       </text>
     ))
   }
 </svg>
+<p class="mobile-note">На телефоне показаны темы, которые встречаются в {mobileMin}+ играх.</p>
 
 <style>
   .cloud {
@@ -58,5 +60,22 @@ const { words, width, height, label, thisName, otherName } = Astro.props;
 
   .lean-even {
     fill: var(--muted);
+  }
+
+  .mobile-note {
+    display: none;
+    margin: 8px 0 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  @media (max-width: 560px) {
+    .minor {
+      display: none;
+    }
+
+    .mobile-note {
+      display: block;
+    }
   }
 </style>
