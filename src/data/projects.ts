@@ -14,9 +14,9 @@ export const projects: Project[] = [
   {
     title: 'Tesera vs BoardGameGeek',
     summary:
-      'Мини-исследование: чем оценки настольных игр российского сообщества Tesera отличаются от мирового BoardGameGeek.',
-    tags: ['Python', 'API', 'парсинг HTML', 'pandas', 'ECharts'],
-    status: 'wip',
+      'Исследование топ-500 игр двух площадок: чем оценки российского сообщества Tesera отличаются от мирового BoardGameGeek и почему «свой» топ всегда выглядит щедрее.',
+    tags: ['Python', 'API', 'парсинг HTML', 'pandas', 'scipy', 'ECharts'],
+    status: 'ready',
     page: '/projects/tesera-bgg/',
   },
   {

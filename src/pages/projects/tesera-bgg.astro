@@ -1,88 +1,379 @@
 ---
 import Base from '../../layouts/Base.astro';
+import data from '../../data/tesera-bgg.json';
 
 const codeUrl = 'https://github.com/Viktor-VK/portfolio'; // TODO: ссылка на папку исследования
+
+const { meta, selection, year, genre, additions, publisher } = data;
+const T = selection.samples.tesera_top;
+const B = selection.samples.bgg_top;
+
+// числа по-русски: запятая, знак для разниц
+const num = (x: number, d = 2) => x.toFixed(d).replace('.', ',');
+const signed = (x: number) => (x > 0 ? '+' : x < 0 ? '-' : '') + num(Math.abs(x));
+const pct = (x: number) => Math.round(x * 100) + '%';
+const p = (x: number) => (x < 0.001 ? 'p < 0,001' : 'p = ' + num(x, x < 0.01 ? 3 : 2));
+const snapshot = new Date(meta.snapshot).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+
+const golden = year.by_period.filter((r) => r.period === '2000-2009' || r.period === '2010-2014');
+const fresh = year.by_period.filter((r) => r.period === '2020-2022' || r.period === '2023+');
+const war = genre.find((g) => g.genre === 'Война')!;
+const eco = genre.find((g) => g.genre === 'Экономика')!;
+const party = genre.find((g) => g.genre === 'Компанейские')!;
+const hw = publisher.top[0];
 ---
 
 <Base
   title="Tesera vs BoardGameGeek"
-  description="Чем оценки настольных игр на Tesera.ru отличаются от BoardGameGeek: мини-исследование топ-50 игр."
+  description="Чем оценки настольных игр на Tesera.ru отличаются от BoardGameGeek: исследование топ-500 игр обеих площадок."
 >
   <article>
     <p class="muted crumbs"><a href="/#projects">Проекты</a> / исследование</p>
-    <span class="badge wip">в работе</span>
-    <h1>Tesera vs BoardGameGeek</h1>
+    <span class="eyebrow">Исследование · Python, pandas, scipy</span>
+    <h1>Tesera vs BoardGameGeek: два сообщества, два топа</h1>
     <p class="lead">
-      Совпадают ли вкусы российского сообщества настольщиков с мировыми? Сравниваю оценки топ-50 игр
-      Tesera.ru с оценками тех же игр на BoardGameGeek.
+      Совпадают ли вкусы российского сообщества настольщиков с мировыми? Сравниваю оценки игр на Tesera.ru и
+      BoardGameGeek по двум выборкам: топ-500 каждой площадки.
     </p>
 
     <dl class="facts">
-      <div><dt>Выборка</dt><dd>топ-50 Tesera</dd></div>
-      <div><dt>Наблюдений</dt><dd>4 260 строк</dd></div>
-      <div><dt>Источники</dt><dd>API + HTML Tesera</dd></div>
-      <div><dt>Срез</dt><dd>сентябрь 2026</dd></div>
+      <div class="card"><dt>Игр в выборках</dt><dd>{meta.games_total}</dd></div>
+      <div class="card"><dt>В сравнении</dt><dd>{meta.games_compared}</dd></div>
+      <div class="card"><dt>В обоих топах</dt><dd>{meta.overlap} из 500</dd></div>
+      <div class="card"><dt>Срез данных</dt><dd>{snapshot}</dd></div>
     </dl>
 
-    <h2>Ключевые выводы</h2>
-    <div class="placeholder">3-4 инсайта с интерактивными графиками появятся после анализа данных.</div>
+    <section class="card summary">
+      <span class="eyebrow">Коротко</span>
+      <ol>
+        <li>
+          «На Tesera оценивают выше» - во многом иллюзия отбора: в топе Tesera разница {signed(T.mean)}, в топе BGG
+          всего {signed(B.mean)}.
+        </li>
+        <li>
+          Игры 2000-2014 годов на Tesera ценят заметно выше, чем в мире (до {signed(Math.max(...golden.map((g) => g.mean)))}),
+          по новинкам вкусы совпадают.
+        </li>
+        <li>
+          Российское сообщество выше оценивает военные ({signed(war.mean)}) и экономические ({signed(eco.mean)})
+          игры, ниже - компанейские ({signed(party.mean)}).
+        </li>
+        <li>Дополнения на Tesera оценивают сдержаннее, чем базовые игры, - в обеих выборках.</li>
+      </ol>
+    </section>
+
+    <!-- 1 -->
+    <h2>1. Топ зависит от того, кто выбирает</h2>
+    <p>
+      Если взять топ-500 Tesera и посмотреть, как те же игры оценены на BGG, вывод кажется очевидным: у нас
+      оценивают щедрее. Но если зеркально взять топ-500 BGG, разница почти исчезает.
+    </p>
+    <div class="pair">
+      <div class="card stat">
+        <span class="stat-label">Топ-500 Tesera</span>
+        <span class="stat-value">{signed(T.mean)}</span>
+        <span class="muted">Tesera выше у {pct(T.share_tesera_higher)} игр · {p(T.p)} · n = {T.n}</span>
+      </div>
+      <div class="card stat">
+        <span class="stat-label">Топ-500 BGG</span>
+        <span class="stat-value">{signed(B.mean)}</span>
+        <span class="muted">Tesera выше у {pct(B.share_tesera_higher)} игр · {p(B.p)} · n = {B.n}</span>
+      </div>
+    </div>
+    <p>
+      Причина - эффект отбора. В топ площадки попадают игры, которым на ней повезло с оценками, поэтому в
+      «своём» топе площадка всегда выглядит щедрее. Честнее смотреть на обе выборки сразу: тогда видно, что оценки
+      связаны умеренно (ρ = {num(selection.spearman)}), а два топ-500 пересекаются всего на {meta.overlap} игры.
+    </p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Средняя оценка игры на двух площадках</strong>
+        <span class="muted">Точка - игра. Выше диагонали - на Tesera оценка выше, ниже - выше на BGG.</span>
+      </figcaption>
+      <div id="chart-scatter" class="chart chart-tall" role="img" aria-label="Диаграмма рассеяния оценок Tesera и BGG"></div>
+    </figure>
+
+    <!-- 2 -->
+    <h2>2. «Золотая эпоха» 2000-2014</h2>
+    <p>
+      Разница в оценках сильно зависит от года выпуска игры. Игры 2000-2014 годов на Tesera оценивают на {golden.map((g) => signed(g.mean)).join(' и ')} выше, чем на BGG, а у новинок 2020+ разницы практически нет ({fresh.map((g) => signed(g.mean)).join(' и ')}). Эффект есть в обеих выборках (ρ = {num(year.rho.tesera_top)} и {num(year.rho.bgg_top)}, {p(year.p.bgg_top)}).
+    </p>
+    <p class="muted">
+      Возможные объяснения: хиты тех лет пришли в Россию позже, с локализацией, и воспринимались как новинки;
+      а на BGG оценки старых игр со временем проседают на фоне потока новых.
+    </p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Насколько Tesera оценивает выше BGG, по году выпуска</strong>
+        <span class="muted">Средняя разница оценок, баллы из 10. Только базовые игры, без дополнений.</span>
+      </figcaption>
+      <div id="chart-year" class="chart" role="img" aria-label="Столбчатая диаграмма разницы оценок по годам выпуска"></div>
+      <details>
+        <summary>Данные графика</summary>
+        <table class="data">
+          <thead><tr><th>Год выпуска</th><th class="num">Tesera - BGG</th><th class="num">Игр</th></tr></thead>
+          <tbody>
+            {year.by_period.map((r) => <tr><td>{r.period}</td><td class="num">{signed(r.mean)}</td><td class="num">{r.n}</td></tr>)}
+          </tbody>
+        </table>
+      </details>
+    </figure>
+
+    <!-- 3 -->
+    <h2>3. Жанры: война и экономика против вечеринок</h2>
+    <p>
+      Относительно мирового сообщества на Tesera выше ценят военные ({signed(war.mean)}) и экономические
+      ({signed(eco.mean)}) игры. Компанейские, наоборот, оценены ниже ({signed(party.mean)}). Аудитория Tesera -
+      увлечённые игроки, которым ближе «тяжёлые» стратегии, чем игры для вечеринок.
+    </p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Насколько Tesera оценивает выше BGG, по жанру</strong>
+        <span class="muted">Средняя разница оценок. Базовые игры, жанры с 10+ играми. У игры может быть несколько жанров.</span>
+      </figcaption>
+      <div id="chart-genre" class="chart" role="img" aria-label="Столбчатая диаграмма разницы оценок по жанрам"></div>
+      <details>
+        <summary>Данные графика</summary>
+        <table class="data">
+          <thead><tr><th>Жанр</th><th class="num">Tesera - BGG</th><th class="num">Игр</th></tr></thead>
+          <tbody>
+            {[...genre].reverse().map((r) => <tr><td>{r.genre}</td><td class="num">{signed(r.mean)}</td><td class="num">{r.n}</td></tr>)}
+          </tbody>
+        </table>
+      </details>
+    </figure>
+
+    <!-- 4 -->
+    <h2>4. Дополнения оценивают сдержаннее</h2>
+    <p>
+      В обеих выборках дополнения получают на Tesera относительно более низкие оценки, чем базовые игры. В топе Tesera разница с BGG у базовых игр {signed(additions.tesera_top.base)}, у дополнений {signed(additions.tesera_top.additions)}; в топе BGG - {signed(additions.bgg_top.base)} и {signed(additions.bgg_top.additions)} ({p(additions.bgg_top.p)}). Гипотеза: на BGG дополнения оценивают в основном преданные фанаты базовой игры, и их оценки выше.
+    </p>
+
+    <!-- 5 -->
+    <h2>Что это значит для издателя: пример Hobby World</h2>
+    <p>
+      {hw.publisher} - самый частый издатель в объединённой выборке: {hw.games} игр из {meta.games_total} (дальше {publisher.top.slice(1, 3).map((x) => `${x.publisher} - ${x.games}`).join(', ')}). Из открытых данных Tesera для него можно извлечь сигнал спроса на вторичном рынке: сколько пользователей хотят купить игру и сколько её продают. Высокое соотношение - аргумент в пользу допечатки тиража.
+    </p>
+    <div class="card table-card">
+      <table class="data">
+        <thead>
+          <tr><th>Игра Hobby World</th><th class="num">Владеют</th><th class="num">Хотят купить</th><th class="num">Продают</th><th class="num">Соотношение</th></tr>
+        </thead>
+        <tbody>
+          {publisher.hw_demand.map((r) => (
+            <tr>
+              <td>{r.title}{r.addition && <span class="muted"> · дополнение</span>}</td>
+              <td class="num">{r.owners}</td>
+              <td class="num">{r.buying}</td>
+              <td class="num">{r.selling}</td>
+              <td class="num"><strong>{num(r.ratio, 1)} : 1</strong></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p class="muted note">
+        Игры с 300+ владельцами на Tesera. Медиана по всей выборке - {num(publisher.median_ratio_all, 0)} : 1. Это
+        накопленные объявления, а не спрос на сегодня, поэтому показатель годится для сравнения игр между собой.
+      </p>
+    </div>
+    <p class="muted">
+      Чего из этих данных не узнать: продажи, остатки и мнение массового покупателя. Tesera - сообщество энтузиастов,
+      и внутренние данные издателя о своих играх всегда точнее. Сила открытых данных - во взгляде на рынок
+      снаружи: на конкурентов и на игры, которых у издателя нет.
+    </p>
 
     <h2>Данные и методика</h2>
     <ul>
       <li>
-        Список игр - «Топ 100 Тесеры» (сортировка по байесовскому рейтингу), первые 50 позиций, включая
-        дополнения.
+        Две выборки: топ-500 Tesera (по байесовскому рейтингу) и топ-500 по рейтингу BGG, всего {meta.games_total} уникальных игр, из них {meta.additions_total} - дополнения.
       </li>
       <li>
-        Tesera: рейтинги, число оценок, суб-рейтинги (геймплей, глубина, оригинальность, реализация),
-        аудитория (владеют / играли / хотят сыграть), жанры, темы, авторы, издатели, награды.
+        Tesera: открытый API сайта (списки, карточки игр) и HTML-страницы игр (суб-рейтинги, жанры, издатели,
+        аудитория, барахолка).
       </li>
       <li>
-        BoardGameGeek: средний рейтинг, geek rating и число оценок - в копии, которую Tesera хранит для каждой
-        игры вместе с идентификатором BGG.
+        BoardGameGeek: средняя оценка, geek rating и число оценок - в копии, которую Tesera хранит для каждой игры
+        вместе с идентификатором BGG. Официальный API BGG с 2025 года требует регистрации приложения.
       </li>
-      <li>Данные собраны в «узкую» таблицу: одна строка - одно значение одного измерения игры.</li>
+      <li>Данные собраны в «узкую» таблицу: одна строка - одно значение одного измерения игры, ~84 тыс. строк.</li>
+      <li>
+        В сравнение попали игры с {meta.min_votes_tesera}+ оценками на Tesera и {meta.min_votes_bgg}+ на BGG.
+        Значимость - t-тест и U-тест Манна-Уитни, связь - корреляция Спирмена.
+      </li>
     </ul>
 
     <h2>Ограничения</h2>
     <ul>
-      <li>50 игр - это топ, а не случайная выборка: выводы про лучшие игры, а не про всю базу.</li>
+      <li>Обе выборки - топы, а не вся база: выводы про заметные игры.</li>
       <li>Дата синхронизации BGG-полей на Tesera неизвестна - возможен небольшой лаг.</li>
-      <li>Теги Tesera проставляют пользователи, поэтому они неполные и не заменяют механики BGG.</li>
+      <li>Жанры и издатели на Tesera заполнены не у всех игр; теги проставляют пользователи.</li>
+      <li>Корреляции не доказывают причин: объяснения в тексте - гипотезы.</li>
     </ul>
 
     <p class="actions">
-      <a class="btn" href={codeUrl}>Код и данные на GitHub</a>
+      <a class="btn primary" href={codeUrl}>Код и данные на GitHub</a>
     </p>
   </article>
 </Base>
 
+<script>
+  import * as echarts from 'echarts/core';
+  import { ScatterChart, BarChart } from 'echarts/charts';
+  import { GridComponent, TooltipComponent, LegendComponent, MarkLineComponent } from 'echarts/components';
+  import { CanvasRenderer } from 'echarts/renderers';
+  import data from '../../data/tesera-bgg.json';
+
+  echarts.use([ScatterChart, BarChart, GridComponent, TooltipComponent, LegendComponent, MarkLineComponent, CanvasRenderer]);
+
+  const css = getComputedStyle(document.documentElement);
+  const v = (name: string) => css.getPropertyValue(name).trim();
+  const C = {
+    tesera: v('--series-tesera'),
+    bgg: v('--series-bgg'),
+    both: v('--series-both'),
+    text: v('--text'),
+    muted: v('--muted'),
+    grid: 'rgba(225, 238, 245, 0.07)',
+    surface: v('--surface-2'),
+    font: v('--font'),
+  };
+  const fmt = (x: number) => (x > 0 ? '+' : x < 0 ? '-' : '') + Math.abs(x).toFixed(2).replace('.', ',');
+
+  const base = {
+    textStyle: { fontFamily: C.font, color: C.muted },
+    tooltip: {
+      backgroundColor: C.surface,
+      borderColor: 'rgba(225, 238, 245, 0.12)',
+      textStyle: { color: C.text, fontFamily: C.font, fontSize: 13 },
+    },
+    animationDuration: 400,
+  };
+  const axis = {
+    axisLine: { lineStyle: { color: C.grid } },
+    axisTick: { show: false },
+    axisLabel: { color: C.muted },
+    splitLine: { lineStyle: { color: C.grid } },
+    nameTextStyle: { color: C.muted },
+  };
+  const charts: echarts.ECharts[] = [];
+  const init = (id: string) => {
+    const c = echarts.init(document.getElementById(id)!);
+    charts.push(c);
+    return c;
+  };
+
+  // 1. Рассеяние
+  const groups = [
+    { key: 'tesera', name: 'Только в топе Tesera', color: C.tesera },
+    { key: 'bgg', name: 'Только в топе BGG', color: C.bgg },
+    { key: 'both', name: 'В обоих топах', color: C.both },
+  ];
+  const pts = data.selection.scatter as [number, number, string, string, number | null][];
+  const lo = Math.floor(Math.min(...pts.flatMap((p) => [p[0], p[1]])) * 2) / 2;
+  const hi = Math.ceil(Math.max(...pts.flatMap((p) => [p[0], p[1]])) * 2) / 2;
+  init('chart-scatter').setOption({
+    ...base,
+    legend: { top: 0, textStyle: { color: C.muted }, itemWidth: 10, itemHeight: 10 },
+    grid: { left: 48, right: 16, top: window.innerWidth < 560 ? 72 : 44, bottom: 48 },
+    tooltip: {
+      ...base.tooltip,
+      trigger: 'item',
+      formatter: (p: any) => {
+        const [b, t, title, , y] = p.data;
+        return `<b>${title}</b>${y ? ` (${y})` : ''}<br/>Tesera: ${t.toFixed(2).replace('.', ',')} · BGG: ${b
+          .toFixed(2)
+          .replace('.', ',')}<br/>Разница: ${fmt(t - b)}`;
+      },
+    },
+    xAxis: { ...axis, type: 'value', name: 'Оценка BGG', nameLocation: 'middle', nameGap: 30, min: lo, max: hi },
+    yAxis: { ...axis, type: 'value', name: 'Оценка Tesera', nameLocation: 'middle', nameGap: 34, min: lo, max: hi },
+    series: groups.map((g, i) => ({
+      name: g.name,
+      type: 'scatter',
+      symbolSize: 8,
+      data: pts.filter((p) => p[3] === g.key),
+      itemStyle: { color: g.color, opacity: 0.8, borderColor: v('--surface'), borderWidth: 1 },
+      emphasis: { itemStyle: { opacity: 1, borderColor: C.text, borderWidth: 2 } },
+      markLine:
+        i === 0
+          ? {
+              silent: true,
+              symbol: 'none',
+              lineStyle: { color: C.muted, type: 'dashed', width: 1 },
+              label: { formatter: 'оценки равны', color: C.muted, position: 'insideEndTop' },
+              data: [[{ coord: [lo, lo] }, { coord: [hi, hi] }]],
+            }
+          : undefined,
+    })),
+  });
+
+  // 2 и 3. Столбцы с полярностью: выше на Tesera / выше на BGG
+  const polarityBar = (id: string, cats: string[], vals: number[], ns: number[], horizontal: boolean) => {
+    const catAxis = { ...axis, type: 'category', data: cats, splitLine: { show: false } };
+    const valAxis = { ...axis, type: 'value', axisLabel: { color: C.muted, formatter: (x: number) => fmt(x) } };
+    init(id).setOption({
+      ...base,
+      grid: horizontal ? { left: 110, right: 56, top: 8, bottom: 28 } : { left: 48, right: 16, top: 28, bottom: 32 },
+      tooltip: {
+        ...base.tooltip,
+        trigger: 'axis',
+        axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(225, 238, 245, 0.04)' } },
+        formatter: (ps: any) => {
+          const p = ps[0];
+          return `<b>${p.name}</b><br/>Tesera - BGG: ${fmt(p.value)}<br/>Игр: ${ns[p.dataIndex]}`;
+        },
+      },
+      xAxis: horizontal ? valAxis : catAxis,
+      yAxis: horizontal ? catAxis : valAxis,
+      series: [
+        {
+          type: 'bar',
+          barMaxWidth: horizontal ? 18 : 44,
+          data: vals.map((x) => ({
+            value: x,
+            itemStyle: {
+              color: x >= 0 ? C.tesera : C.bgg,
+              borderRadius: horizontal ? (x >= 0 ? [0, 4, 4, 0] : [4, 0, 0, 4]) : x >= 0 ? [4, 4, 0, 0] : [0, 0, 4, 4],
+            },
+          })),
+          label: {
+            show: true,
+            position: horizontal ? 'right' : 'top',
+            color: C.text,
+            formatter: (p: any) => fmt(p.value),
+          },
+        },
+      ],
+    });
+  };
+
+  const yr = data.year.by_period;
+  polarityBar('chart-year', yr.map((r) => r.period), yr.map((r) => r.mean), yr.map((r) => r.n), false);
+  const gn = data.genre;
+  polarityBar('chart-genre', gn.map((r) => r.genre), gn.map((r) => r.mean), gn.map((r) => r.n), true);
+
+  window.addEventListener('resize', () => charts.forEach((c) => c.resize()));
+</script>
+
 <style>
   article {
-    max-width: 46rem;
+    max-width: 52rem;
   }
 
   .crumbs {
-    margin: 0 0 12px;
+    margin: 0 0 16px;
     font-size: 0.9rem;
-  }
-
-  h1 {
-    margin-top: 12px;
   }
 
   .facts {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 12px;
-    margin: 28px 0 0;
+    margin: 28px 0;
   }
 
-  .facts div {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 12px 16px;
+  .facts .card {
+    padding: 14px 16px;
   }
 
   dt {
@@ -92,7 +383,83 @@ const codeUrl = 'https://github.com/Viktor-VK/portfolio'; // TODO: ссылка 
 
   dd {
     margin: 2px 0 0;
-    font-weight: 600;
+    font-size: 1.15rem;
+    font-weight: 700;
+  }
+
+  .summary ol {
+    margin: 0;
+    padding-left: 1.2rem;
+  }
+
+  .summary li {
+    margin-bottom: 6px;
+  }
+
+  .pair {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin: 20px 0;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .stat-label {
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .stat-value {
+    font-size: 2.2rem;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+
+  .chart-card {
+    margin: 20px 0;
+    padding: 16px;
+  }
+
+  figcaption {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+  }
+
+  .chart {
+    width: 100%;
+    height: 320px;
+  }
+
+  .chart-tall {
+    height: 460px;
+  }
+
+  details {
+    margin-top: 8px;
+    font-size: 0.9rem;
+  }
+
+  summary {
+    cursor: pointer;
+    color: var(--muted);
+  }
+
+  .table-card {
+    margin: 20px 0;
+    overflow-x: auto;
+  }
+
+  .note {
+    margin: 12px 0 0;
+    font-size: 0.85rem;
   }
 
   li {
