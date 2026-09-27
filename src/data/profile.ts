@@ -14,8 +14,9 @@ export const profile = {
   skills: ['SQL', 'Python', 'pandas', 'Jupyter', 'Superset', 'ETL', 'A/B и статистика', 'Сегментация', 'Дашборды', 'ИИ-агенты'],
   github: 'https://github.com/Viktor-VK',
   contacts: {
-    telegram: null as string | null, // TODO: 'https://t.me/...'
-    email: null as string | null, // TODO: 'mailto:...'
+    telegram: 'https://t.me/Kobcev' as string | null,
+    channel: 'https://t.me/zamkivp' as string | null,
+    email: 'mailto:kobtsev.victor@yandex.ru' as string | null,
     hh: null as string | null, // TODO: ссылка на резюме hh.ru
   },
 };

@@ -18,6 +18,7 @@ export const projects: Project[] = [
     tags: ['Python', 'API', 'парсинг HTML', 'pandas', 'scipy', 'ECharts'],
     status: 'ready',
     page: '/projects/tesera-bgg/',
+    code: folder('Сравнение рейтингов Tesera и BGG'),
   },
   {
     title: 'Мониторинг рынка вакансий hh.ru',
