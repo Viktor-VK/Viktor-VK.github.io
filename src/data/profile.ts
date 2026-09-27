@@ -17,6 +17,5 @@ export const profile = {
     telegram: 'https://t.me/Kobcev' as string | null,
     channel: 'https://t.me/zamkivp' as string | null,
     email: 'mailto:kobtsev.victor@yandex.ru' as string | null,
-    hh: null as string | null, // TODO: ссылка на резюме hh.ru
   },
 };
