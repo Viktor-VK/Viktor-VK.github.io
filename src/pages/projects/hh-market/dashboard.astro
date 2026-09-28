@@ -1,0 +1,884 @@
+---
+import fs from 'node:fs';
+import path from 'node:path';
+import Base from '../../../layouts/Base.astro';
+
+// дата среза и число вакансий - из той же выгрузки, что грузит страница (export_site_data.py)
+const data = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'public', 'data', 'hh-market.json'), 'utf-8'));
+const snapshot = new Date(data.snapshot_date)
+  .toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })
+  .replace(/ /g, ' ');
+const total = data.rows.length.toLocaleString('ru-RU').replace(/\s/g, ' ');
+---
+
+<Base
+  title="Дашборд рынка вакансий аналитиков"
+  description="Интерактивный дашборд по вакансиям аналитиков в РФ на hh.ru: фильтры по городу, опыту, грейду, специализации и зарплате, распределение зарплат и список вакансий."
+>
+  <article class="dash">
+    <p class="muted crumbs">
+      <a href="/#projects">Проекты</a> / <a href="/projects/hh-market/">Мониторинг рынка вакансий</a> / дашборд
+    </p>
+    <span class="eyebrow">Дашборд · hh.ru</span>
+    <h1>Рынок вакансий аналитиков</h1>
+    <p class="snapshot"><span class="badge ok">Срез на {snapshot}</span> <span class="muted">{total} актуальных вакансий: все, что были на hh.ru в последней выгрузке</span></p>
+
+    <section class="filters-wrap card">
+      <button class="filters-toggle btn" type="button" aria-expanded="false" aria-controls="filters">Фильтры</button>
+      <div class="filters" id="filters">
+        <div class="ms" data-field="city" data-label="Город" data-search="1"></div>
+        <div class="ms" data-field="company" data-label="Компания" data-search="1"></div>
+        <div class="ms" data-field="experience" data-label="Опыт"></div>
+        <div class="ms" data-field="role" data-label="Грейд"></div>
+        <div class="ms" data-field="profile" data-label="Специализация"></div>
+        <div class="seg" data-field="remote">
+          <span class="seg-label">Удалёнка</span>
+          <button type="button" data-v="all" class="on">все</button><button type="button" data-v="1">есть</button><button type="button" data-v="0">нет</button>
+        </div>
+        <div class="seg" data-field="salary">
+          <span class="seg-label">Зарплата</span>
+          <button type="button" data-v="all" class="on">все</button><button type="button" data-v="yes">указана</button><button type="button" data-v="no">не указана</button>
+        </div>
+        <div class="range">
+          <span class="seg-label">Зарплата, тыс. ₽</span>
+          <input type="number" id="sal-min" placeholder="от" min="0" step="10" inputmode="numeric" />
+          <input type="number" id="sal-max" placeholder="до" min="0" step="10" inputmode="numeric" />
+        </div>
+        <input class="search" type="search" id="q" placeholder="Поиск по названию вакансии" />
+        <button class="btn reset" type="button" id="reset">Сбросить</button>
+      </div>
+      <div class="chips" id="chips"></div>
+    </section>
+
+    <div class="loading muted" id="loading">Загружаю данные…</div>
+
+    <dl class="kpis" id="kpis">
+      <div class="card"><dt>Вакансий</dt><dd id="k-n">-</dd><span class="muted" id="k-n-sub"></span></div>
+      <div class="card"><dt>Компаний</dt><dd id="k-c">-</dd><span class="muted">&nbsp;</span></div>
+      <div class="card"><dt>С удалёнкой</dt><dd id="k-r">-</dd><span class="muted" id="k-r-sub"></span></div>
+      <div class="card"><dt>С указанной зарплатой</dt><dd id="k-s">-</dd><span class="muted" id="k-s-sub"></span></div>
+    </dl>
+
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Распределение зарплат</strong>
+        <span class="muted" id="hist-sub"></span>
+      </figcaption>
+      <div id="ch-hist" class="chart" role="img" aria-label="Гистограмма зарплат"></div>
+    </figure>
+
+    <p class="muted hint">Клик по столбцу фильтрует весь дашборд, повторный клик снимает фильтр.</p>
+    <div class="charts">
+      <figure class="card chart-card"><figcaption><strong>Опыт работы</strong></figcaption><div id="ch-experience" class="chart"></div></figure>
+      <figure class="card chart-card"><figcaption><strong>Грейд</strong><span class="muted">по названию вакансии</span></figcaption><div id="ch-role" class="chart"></div></figure>
+      <figure class="card chart-card wide"><figcaption><strong>Специализация</strong><span class="muted">по названию вакансии</span></figcaption><div id="ch-profile" class="chart"></div></figure>
+      <figure class="card chart-card"><figcaption><strong>Топ-10 городов</strong></figcaption><div id="ch-city" class="chart"></div></figure>
+      <figure class="card chart-card"><figcaption><strong>Топ-10 компаний</strong></figcaption><div id="ch-company" class="chart"></div></figure>
+      <figure class="card chart-card wide"><figcaption><strong>Топ-10 названий вакансий</strong></figcaption><div id="ch-title" class="chart"></div></figure>
+    </div>
+
+    <section class="card list-card">
+      <div class="list-head">
+        <strong>Вакансии</strong>
+        <span class="muted" id="list-count"></span>
+        <label class="sort muted">Сортировка
+          <select id="sort">
+            <option value="salary">по зарплате</option>
+            <option value="title">по названию</option>
+            <option value="company">по компании</option>
+          </select>
+        </label>
+      </div>
+      <div class="vlist" id="vlist" role="list"></div>
+      <div class="pager">
+        <button class="btn" type="button" id="prev">←</button>
+        <span class="muted" id="page-info"></span>
+        <button class="btn" type="button" id="next">→</button>
+      </div>
+    </section>
+
+    <h2>О данных</h2>
+    <ul class="about">
+      <li>Все аналитические вакансии в РФ на hh.ru, собранные моим парсером; в срез входят вакансии, которые были на сайте в последней выгрузке.</li>
+      <li>Грейд и специализация размечены SQL-правилами по названию вакансии - теми же, что в рабочем дашборде в Superset. «Не определён» - в названии нет явного признака.</li>
+      <li>Зарплата вакансии - середина вилки «от-до»; если указана одна граница, берётся она. Зарплату указывают только около 30% работодателей.</li>
+    </ul>
+    <p class="actions">
+      <a class="btn" href="/projects/hh-market/">О проекте</a>
+      <a class="btn" href="/projects/hh-market/research-2026-09-08/">Исследование на 08.09.2026</a>
+    </p>
+  </article>
+</Base>
+
+<script>
+  import * as echarts from 'echarts/core';
+  import { BarChart } from 'echarts/charts';
+  import { GridComponent, TooltipComponent, MarkLineComponent } from 'echarts/components';
+  import { CanvasRenderer } from 'echarts/renderers';
+
+  echarts.use([BarChart, GridComponent, TooltipComponent, MarkLineComponent, CanvasRenderer]);
+
+  // ---------- подписи вместо технических кодов ----------
+  const ROLE: Record<string, string> = {
+    lead: 'Руководитель (lead)', senior: 'Senior', middle: 'Middle', junior: 'Junior', other: 'Не определён',
+  };
+  const PROFILE: Record<string, string> = {
+    data_analyst: 'Аналитик данных', data_engineer: 'Инженер данных', system_analyst: 'Системный аналитик',
+    product_analyst: 'Продуктовый аналитик', bi_analyst: 'BI-аналитик', '1C_analyst': '1С-аналитик',
+    'маркетолог': 'Маркетинг-аналитик', 'бизнес-аналитик': 'Бизнес-аналитик', 'логист': 'Логистика и закупки',
+    'HR-аналитик': 'HR-аналитик', fullstack: 'Fullstack-аналитик', 'химик': 'Химик-аналитик',
+    'ИБ-аналитик': 'ИБ-аналитик', 'инвестиционный': 'Финансы и инвестиции', 'медиа': 'Медиа-аналитик',
+    other: 'Не определён',
+  };
+  const EXP_ORDER = ['Без опыта', '1-3 года', '3-6 лет', 'более 6 лет'];
+  const expLabel = (s: string) => s.replace(/ /g, ' ').replace(/^Опыт\s+/, '');
+
+  type Row = {
+    id: number; title: string; company: string; city: string; experience: string; role: string; profile: string;
+    remote: boolean; from: number | null; to: number | null; sal: number | null;
+  };
+  type Field = 'city' | 'company' | 'experience' | 'role' | 'profile' | 'title';
+  const MS_FIELDS: Field[] = ['city', 'company', 'experience', 'role', 'profile'];
+
+  // ---------- состояние фильтров ----------
+  const state = {
+    sets: { city: new Set<string>(), company: new Set<string>(), experience: new Set<string>(), role: new Set<string>(),
+      profile: new Set<string>(), title: new Set<string>() } as Record<Field, Set<string>>,
+    remote: 'all', salary: 'all', salMin: null as number | null, salMax: null as number | null, q: '',
+    sort: 'salary', page: 0,
+  };
+  const PAGE = 20;
+  let rows: Row[] = [];
+
+  // ---------- форматирование ----------
+  const nf = new Intl.NumberFormat('ru-RU');
+  const n = (x: number) => nf.format(x).replace(/\s/g, ' ');
+  const k = (x: number) => n(Math.round(x / 1000)) + ' тыс.';
+  const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0) + '%';
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+  const salaryText = (r: Row) => {
+    if (r.from == null && r.to == null) return '';
+    if (r.from != null && r.to != null && r.from !== r.to) return `${n(Math.round(r.from / 1000))}-${k(r.to)} ₽`;
+    return `${k((r.from ?? r.to)!)} ₽`;
+  };
+
+  // ---------- фильтрация ----------
+  function match(r: Row, skip?: Field) {
+    for (const f of [...MS_FIELDS, 'title'] as Field[]) {
+      if (f === skip) continue;
+      const s = state.sets[f];
+      if (s.size && !s.has(r[f])) return false;
+    }
+    if (state.remote !== 'all' && r.remote !== (state.remote === '1')) return false;
+    if (state.salary === 'yes' && r.sal == null) return false;
+    if (state.salary === 'no' && r.sal != null) return false;
+    if (state.salMin != null && (r.sal == null || r.sal < state.salMin * 1000)) return false;
+    if (state.salMax != null && (r.sal == null || r.sal > state.salMax * 1000)) return false;
+    if (state.q && !r.title.toLowerCase().includes(state.q)) return false;
+    return true;
+  }
+
+  function groupBy(list: Row[], f: Field) {
+    const m = new Map<string, { n: number; sum: number; ns: number }>();
+    for (const r of list) {
+      const g = m.get(r[f]) ?? { n: 0, sum: 0, ns: 0 };
+      g.n++;
+      if (r.sal != null) { g.sum += r.sal; g.ns++; }
+      m.set(r[f], g);
+    }
+    return m;
+  }
+
+  // ---------- графики ----------
+  const css = () => getComputedStyle(document.documentElement);
+  const v = (name: string) => css().getPropertyValue(name).trim();
+  const charts = new Map<string, echarts.ECharts>();
+  // размер графика отслеживается ResizeObserver: в фоновой вкладке контейнер нулевой ширины,
+  // и без этого график остался бы пустым, когда вкладку откроют
+  let sized = false;
+  const ro = new ResizeObserver(() => {
+    charts.forEach((c) => c.resize());
+    if (!sized && rows.length && document.getElementById('ch-hist')!.clientWidth > 0) { sized = true; update(); }
+  });
+  const chart = (id: string) => {
+    let c = charts.get(id);
+    if (!c) {
+      const el = document.getElementById(id)!;
+      c = echarts.init(el);
+      charts.set(id, c);
+      ro.observe(el);
+    }
+    return c;
+  };
+  const baseOpt = () => ({
+    textStyle: { fontFamily: v('--font'), color: v('--muted') },
+    animationDuration: 250,
+    tooltip: {
+      backgroundColor: v('--surface-2'), borderColor: v('--border'),
+      textStyle: { color: v('--text'), fontFamily: v('--font'), fontSize: 13 },
+    },
+  });
+
+  const LABELS: Record<Field, (s: string) => string> = {
+    experience: expLabel, role: (s) => ROLE[s] ?? s, profile: (s) => PROFILE[s] ?? s,
+    city: (s) => s, company: (s) => s, title: (s) => s,
+  };
+
+  function renderBars(field: Field, top?: number) {
+    const base = rows.filter((r) => match(r, field));
+    const g = groupBy(base, field);
+    let keys = [...g.keys()];
+    if (field === 'experience') keys.sort((a, b) => EXP_ORDER.indexOf(expLabel(a)) - EXP_ORDER.indexOf(expLabel(b)));
+    else keys.sort((a, b) => g.get(b)!.n - g.get(a)!.n);
+    const sel = state.sets[field];
+    if (top) keys = [...new Set([...keys.slice(0, top), ...[...sel].filter((s) => g.has(s))])];
+    const shown = [...keys].reverse(); // сверху - самые большие
+    const total = base.length;
+    const el = document.getElementById('ch-' + field)!;
+    el.style.height = Math.max(120, shown.length * 28 + 30) + 'px';
+    const c = chart('ch-' + field);
+    c.resize();
+    const accent = v('--series-tesera');
+    c.setOption({
+      ...baseOpt(),
+      grid: { left: 8, right: 56, top: 4, bottom: 4, containLabel: true },
+      xAxis: { type: 'value', show: false },
+      yAxis: {
+        type: 'category', data: shown, axisTick: { show: false }, axisLine: { show: false },
+        axisLabel: {
+          color: v('--text'), width: Math.min(260, Math.max(110, el.clientWidth * 0.42)), overflow: 'truncate',
+          formatter: (s: string) => LABELS[field](s),
+        },
+      },
+      tooltip: {
+        ...baseOpt().tooltip, trigger: 'item',
+        formatter: (p: any) => {
+          const x = g.get(p.name)!;
+          return `<b>${esc(LABELS[field](p.name))}</b><br/>Вакансий: ${n(x.n)} (${pct(x.n, total)})<br/>` +
+            (x.ns ? `Средняя зарплата: ${k(x.sum / x.ns)} ₽ <span style="opacity:.7">(по ${n(x.ns)})</span>` : 'Зарплата не указана');
+        },
+      },
+      series: [{
+        type: 'bar', barMaxWidth: 18,
+        data: shown.map((key) => ({
+          value: g.get(key)!.n, name: key,
+          itemStyle: { color: accent, opacity: sel.size && !sel.has(key) ? 0.3 : 1, borderRadius: [0, 4, 4, 0] },
+        })),
+        label: { show: true, position: 'right', color: v('--muted'), formatter: (p: any) => n(p.value) },
+      }],
+    }, true);
+    c.off('click');
+    c.on('click', (p: any) => toggle(field, p.name));
+  }
+
+  function renderHist(list: Row[]) {
+    const sal = list.map((r) => r.sal).filter((s): s is number => s != null).sort((a, b) => a - b);
+    const STEP = 25000, MAXB = 20; // 0-25 … 475-500, затем «500+»
+    const bins = new Array(MAXB + 1).fill(0);
+    for (const s of sal) bins[Math.min(Math.floor(s / STEP), MAXB)]++;
+    const cats = bins.map((_, i) => (i < MAXB ? `${(i * STEP) / 1000}-${((i + 1) * STEP) / 1000}` : '500+'));
+    const median = sal.length ? (sal.length % 2 ? sal[(sal.length - 1) / 2] : (sal[sal.length / 2 - 1] + sal[sal.length / 2]) / 2) : null;
+    const avg = sal.length ? sal.reduce((a, b) => a + b, 0) / sal.length : null;
+    document.getElementById('hist-sub')!.textContent = sal.length
+      ? `Медиана ${k(median!)} ₽, средняя ${k(avg!)} ₽. По ${n(sal.length)} вакансиям с указанной зарплатой, шаг 25 тыс. ₽`
+      : 'Нет вакансий с указанной зарплатой';
+    const c = chart('ch-hist');
+    c.setOption({
+      ...baseOpt(),
+      grid: { left: 8, right: 8, top: 28, bottom: 4, containLabel: true },
+      xAxis: {
+        type: 'category', data: cats, axisTick: { show: false }, axisLine: { lineStyle: { color: v('--grid') } },
+        axisLabel: { color: v('--muted'), interval: window.innerWidth < 560 ? 3 : 1 }, name: 'тыс. ₽',
+        nameTextStyle: { color: v('--muted') },
+      },
+      yAxis: { type: 'value', splitLine: { lineStyle: { color: v('--grid') } }, axisLabel: { color: v('--muted') } },
+      tooltip: {
+        ...baseOpt().tooltip, trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: v('--grid') } },
+        formatter: (ps: any) => `<b>${ps[0].name} тыс. ₽</b><br/>Вакансий: ${n(ps[0].value)} (${pct(ps[0].value, sal.length)})`,
+      },
+      series: [{
+        type: 'bar', data: bins, barCategoryGap: '12%',
+        itemStyle: { color: v('--series-tesera'), borderRadius: [4, 4, 0, 0] },
+        markLine: median == null ? undefined : {
+          silent: true, symbol: 'none', lineStyle: { color: v('--series-bgg'), type: 'dashed', width: 2 },
+          label: { formatter: `медиана ${k(median)}`, color: v('--text'), position: 'end' },
+          data: [{ xAxis: cats[Math.min(Math.floor(median / STEP), MAXB)] }],
+        },
+      }],
+    }, true);
+  }
+
+  // ---------- карточки и список ----------
+  function renderKpis(list: Row[]) {
+    const companies = new Set(list.map((r) => r.company)).size;
+    const remote = list.filter((r) => r.remote).length;
+    const sal = list.filter((r) => r.sal != null).length;
+    const set = (id: string, t: string) => (document.getElementById(id)!.textContent = t);
+    set('k-n', n(list.length));
+    set('k-n-sub', list.length === rows.length ? 'все вакансии среза' : `из ${n(rows.length)}`);
+    set('k-c', n(companies));
+    set('k-r', n(remote));
+    set('k-r-sub', pct(remote, list.length));
+    set('k-s', n(sal));
+    set('k-s-sub', pct(sal, list.length));
+  }
+
+  function renderList(list: Row[]) {
+    const sorted = [...list];
+    if (state.sort === 'salary') sorted.sort((a, b) => (b.sal ?? -1) - (a.sal ?? -1));
+    else sorted.sort((a, b) => a[state.sort as 'title' | 'company'].localeCompare(b[state.sort as 'title' | 'company'], 'ru'));
+    const pages = Math.max(1, Math.ceil(sorted.length / PAGE));
+    state.page = Math.min(state.page, pages - 1);
+    const part = sorted.slice(state.page * PAGE, state.page * PAGE + PAGE);
+    document.getElementById('vlist')!.innerHTML = part.length
+      ? part.map((r) => `
+        <div class="vrow" role="listitem">
+          <a class="vtitle" href="https://hh.ru/vacancy/${r.id}" target="_blank" rel="noopener">${esc(r.title)}</a>
+          <span class="vmeta">${esc(r.company)} · ${esc(r.city)}${r.remote ? ' · удалёнка' : ''}</span>
+          <span class="vsal ${r.sal == null ? 'muted' : ''}">${r.sal == null ? 'зарплата не указана' : salaryText(r)}</span>
+        </div>`).join('')
+      : '<p class="muted empty">Нет вакансий под выбранные фильтры</p>';
+    document.getElementById('list-count')!.textContent = `${n(sorted.length)} шт.`;
+    document.getElementById('page-info')!.textContent = `${state.page + 1} из ${pages}`;
+    (document.getElementById('prev') as HTMLButtonElement).disabled = state.page === 0;
+    (document.getElementById('next') as HTMLButtonElement).disabled = state.page >= pages - 1;
+  }
+
+  // ---------- фильтры: выпадающие списки ----------
+  function buildMs(el: HTMLElement) {
+    const field = el.dataset.field as Field;
+    const counts = groupBy(rows, field);
+    let keys = [...counts.keys()];
+    if (field === 'experience') keys.sort((a, b) => EXP_ORDER.indexOf(expLabel(a)) - EXP_ORDER.indexOf(expLabel(b)));
+    else keys.sort((a, b) => counts.get(b)!.n - counts.get(a)!.n);
+    el.innerHTML = `
+      <button type="button" class="ms-btn"><span class="ms-name">${el.dataset.label}</span><span class="ms-val">все</span></button>
+      <div class="ms-pop" hidden>
+        ${el.dataset.search ? '<input type="search" class="ms-q" placeholder="Найти…" />' : ''}
+        <div class="ms-list">${keys.map((key) => `
+          <label class="ms-opt" data-key="${esc(key)}"><input type="checkbox" value="${esc(key)}" />
+            <span>${esc(LABELS[field](key))}</span><span class="muted">${n(counts.get(key)!.n)}</span></label>`).join('')}
+        </div>
+      </div>`;
+    const btn = el.querySelector('.ms-btn') as HTMLButtonElement;
+    const pop = el.querySelector('.ms-pop') as HTMLElement;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = pop.hidden;
+      document.querySelectorAll<HTMLElement>('.ms-pop').forEach((p) => (p.hidden = true));
+      pop.hidden = !open;
+      (pop.querySelector('.ms-q') as HTMLInputElement | null)?.focus();
+    });
+    pop.addEventListener('click', (e) => e.stopPropagation());
+    pop.addEventListener('change', (e) => {
+      const cb = e.target as HTMLInputElement;
+      if (cb.checked) state.sets[field].add(cb.value); else state.sets[field].delete(cb.value);
+      state.page = 0;
+      update();
+    });
+    pop.querySelector('.ms-q')?.addEventListener('input', (e) => {
+      const q = (e.target as HTMLInputElement).value.toLowerCase();
+      pop.querySelectorAll<HTMLElement>('.ms-opt').forEach((o) => (o.hidden = !o.dataset.key!.toLowerCase().includes(q)));
+    });
+  }
+
+  function syncMs() {
+    document.querySelectorAll<HTMLElement>('.ms').forEach((el) => {
+      const field = el.dataset.field as Field;
+      const s = state.sets[field];
+      el.querySelectorAll<HTMLInputElement>('.ms-opt input').forEach((cb) => (cb.checked = s.has(cb.value)));
+      const val = el.querySelector('.ms-val')!;
+      val.textContent = s.size === 0 ? 'все' : s.size === 1 ? LABELS[field]([...s][0]) : `выбрано: ${s.size}`;
+      el.classList.toggle('active', s.size > 0);
+    });
+  }
+
+  function renderChips() {
+    const chips: string[] = [];
+    for (const f of [...MS_FIELDS, 'title'] as Field[]) {
+      for (const val of state.sets[f]) chips.push(`<button type="button" class="chip" data-f="${f}" data-v="${esc(val)}">${esc(LABELS[f](val))} ×</button>`);
+    }
+    const box = document.getElementById('chips')!;
+    box.innerHTML = chips.join('');
+    box.hidden = chips.length === 0;
+    const count = chips.length + (state.remote !== 'all' ? 1 : 0) + (state.salary !== 'all' ? 1 : 0) +
+      (state.salMin != null || state.salMax != null ? 1 : 0) + (state.q ? 1 : 0);
+    document.querySelector('.filters-toggle')!.textContent = count ? `Фильтры (${count})` : 'Фильтры';
+  }
+
+  function toggle(field: Field, val: string) {
+    const s = state.sets[field];
+    if (s.has(val)) s.delete(val); else s.add(val);
+    state.page = 0;
+    update();
+  }
+
+  // ---------- перерисовка ----------
+  function update() {
+    const list = rows.filter((r) => match(r));
+    renderKpis(list);
+    renderHist(list);
+    renderBars('experience');
+    renderBars('role');
+    renderBars('profile');
+    renderBars('city', 10);
+    renderBars('company', 10);
+    renderBars('title', 10);
+    renderList(list);
+    syncMs();
+    renderChips();
+  }
+
+  function bindControls() {
+    document.querySelectorAll<HTMLElement>('.ms').forEach(buildMs);
+    document.addEventListener('click', () => document.querySelectorAll<HTMLElement>('.ms-pop').forEach((p) => (p.hidden = true)));
+    document.querySelectorAll<HTMLElement>('.seg').forEach((seg) => {
+      seg.addEventListener('click', (e) => {
+        const b = (e.target as HTMLElement).closest('button');
+        if (!b) return;
+        seg.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+        (state as any)[seg.dataset.field!] = b.dataset.v;
+        state.page = 0;
+        update();
+      });
+    });
+    const num = (id: string) => {
+      const x = (document.getElementById(id) as HTMLInputElement).value;
+      return x === '' ? null : Number(x);
+    };
+    ['sal-min', 'sal-max'].forEach((id) => document.getElementById(id)!.addEventListener('change', () => {
+      state.salMin = num('sal-min');
+      state.salMax = num('sal-max');
+      state.page = 0;
+      update();
+    }));
+    let t: number | undefined;
+    document.getElementById('q')!.addEventListener('input', (e) => {
+      clearTimeout(t);
+      t = window.setTimeout(() => { state.q = (e.target as HTMLInputElement).value.trim().toLowerCase(); state.page = 0; update(); }, 200);
+    });
+    document.getElementById('sort')!.addEventListener('change', (e) => {
+      state.sort = (e.target as HTMLSelectElement).value;
+      state.page = 0;
+      renderList(rows.filter((r) => match(r)));
+    });
+    document.getElementById('prev')!.addEventListener('click', () => { state.page--; renderList(rows.filter((r) => match(r))); });
+    document.getElementById('next')!.addEventListener('click', () => { state.page++; renderList(rows.filter((r) => match(r))); });
+    document.getElementById('chips')!.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('.chip');
+      if (b) toggle(b.dataset.f as Field, b.dataset.v!);
+    });
+    document.getElementById('reset')!.addEventListener('click', () => {
+      Object.values(state.sets).forEach((s) => s.clear());
+      Object.assign(state, { remote: 'all', salary: 'all', salMin: null, salMax: null, q: '', page: 0 });
+      document.querySelectorAll('.seg button').forEach((b) => b.classList.toggle('on', (b as HTMLElement).dataset.v === 'all'));
+      ['sal-min', 'sal-max', 'q'].forEach((id) => ((document.getElementById(id) as HTMLInputElement).value = ''));
+      update();
+    });
+    const toggleBtn = document.querySelector('.filters-toggle') as HTMLButtonElement;
+    toggleBtn.addEventListener('click', () => {
+      const open = document.querySelector('.filters-wrap')!.classList.toggle('open');
+      toggleBtn.setAttribute('aria-expanded', String(open));
+    });
+    window.addEventListener('themechange', () => { charts.forEach((c) => c.dispose()); charts.clear(); update(); });
+  }
+
+  // ---------- загрузка ----------
+  async function init() {
+    const res = await fetch('/data/hh-market.json');
+    const d = await res.json();
+    const F: string[] = d.fields;
+    const ix = (name: string) => F.indexOf(name);
+    const D = d.dicts;
+    rows = d.rows.map((r: any[]) => ({
+      id: r[ix('vacancy_id')], title: r[ix('title')], company: D.company[r[ix('company')]], city: D.city[r[ix('city_clean')]],
+      experience: D.experience[r[ix('experience')]], role: D.role[r[ix('role')]], profile: D.profile[r[ix('profile')]],
+      remote: r[ix('is_remote')] === 1, from: r[ix('salary_from')], to: r[ix('salary_to')], sal: r[ix('salary_avg')],
+    }));
+    document.getElementById('loading')!.remove();
+    bindControls();
+    update();
+  }
+
+  init().catch(() => {
+    document.getElementById('loading')!.textContent = 'Не удалось загрузить данные. Обновите страницу.';
+  });
+</script>
+
+<style>
+  .dash {
+    max-width: var(--maxw);
+  }
+
+  .crumbs {
+    margin: 0 0 16px;
+    font-size: 0.9rem;
+  }
+
+  .snapshot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin: 0 0 20px;
+  }
+
+  .filters-wrap {
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+
+  .filters-toggle {
+    display: none;
+  }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .ms {
+    position: relative;
+  }
+
+  :global(.ms-btn) {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    max-width: 240px;
+    padding: 7px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+
+  :global(.ms-name) {
+    color: var(--muted);
+  }
+
+  :global(.ms-val) {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  :global(.ms.active .ms-btn) {
+    border-color: var(--accent);
+  }
+
+  :global(.ms-pop) {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 6px);
+    left: 0;
+    width: 300px;
+    max-height: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  }
+
+  :global(.ms-pop[hidden]) {
+    display: none;
+  }
+
+  :global(.ms-list) {
+    overflow-y: auto;
+  }
+
+  :global(.ms-opt) {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+    align-items: center;
+    padding: 5px 6px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+
+  :global(.ms-opt[hidden]) {
+    display: none;
+  }
+
+  :global(.ms-opt:hover) {
+    background: var(--surface-2);
+  }
+
+  :global(.ms-q),
+  .search,
+  .range input,
+  .sort select {
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.9rem;
+  }
+
+  .seg,
+  .range {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .seg-label {
+    margin-right: 4px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .seg button {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+
+  .seg button:first-of-type {
+    border-radius: 8px 0 0 8px;
+  }
+
+  .seg button:last-of-type {
+    border-radius: 0 8px 8px 0;
+  }
+
+  .seg button.on {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--text);
+  }
+
+  .range input {
+    width: 76px;
+  }
+
+  .search {
+    flex: 1 1 220px;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .chips[hidden] {
+    display: none;
+  }
+
+  :global(.chip) {
+    padding: 3px 10px;
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin: 0 0 16px;
+  }
+
+  .kpis .card {
+    padding: 14px 16px;
+  }
+
+  dt {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  dd {
+    margin: 2px 0 0;
+    font-size: 1.5rem;
+    font-weight: 800;
+  }
+
+  .kpis span {
+    font-size: 0.85rem;
+  }
+
+  .chart-card {
+    margin: 0 0 16px;
+    padding: 16px;
+  }
+
+  figcaption {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 10px;
+    align-items: baseline;
+    margin-bottom: 10px;
+    font-size: 0.95rem;
+  }
+
+  figcaption .muted {
+    font-size: 0.85rem;
+  }
+
+  .chart {
+    width: 100%;
+    height: 300px;
+  }
+
+  .hint {
+    margin: 8px 0;
+    font-size: 0.85rem;
+  }
+
+  .charts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 16px;
+  }
+
+  .charts .wide {
+    grid-column: 1 / -1;
+  }
+
+  .list-card {
+    padding: 16px;
+  }
+
+  .list-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 12px;
+    margin-bottom: 8px;
+  }
+
+  .sort {
+    margin-left: auto;
+    font-size: 0.85rem;
+  }
+
+  :global(.vrow) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  :global(.vtitle) {
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  :global(.vtitle:hover) {
+    text-decoration: underline;
+  }
+
+  :global(.vmeta) {
+    grid-column: 1;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  :global(.vsal) {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+    text-align: right;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  :global(.vsal.muted) {
+    font-weight: 400;
+    font-size: 0.85rem;
+  }
+
+  :global(.empty) {
+    padding: 16px 0;
+  }
+
+  .pager {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .pager button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  .about li {
+    margin-bottom: 6px;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 24px;
+  }
+
+  @media (max-width: 760px) {
+    .filters-toggle {
+      display: inline-block;
+    }
+
+    .filters {
+      display: none;
+      margin-top: 12px;
+    }
+
+    .filters-wrap.open .filters {
+      display: flex;
+    }
+
+    .charts {
+      grid-template-columns: 1fr;
+    }
+
+    .ms,
+    :global(.ms-btn),
+    .search {
+      width: 100%;
+      max-width: none;
+    }
+
+    :global(.ms-pop) {
+      width: 100%;
+    }
+
+    :global(.vrow) {
+      grid-template-columns: 1fr;
+    }
+
+    :global(.vsal) {
+      grid-column: 1;
+      grid-row: auto;
+      text-align: left;
+    }
+  }
+</style>
