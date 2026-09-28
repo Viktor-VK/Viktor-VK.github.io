@@ -7,6 +7,7 @@ export type Project = {
   tags: string[];
   status: 'ready' | 'wip';
   page?: string; // своя страница на сайте
+  pageLabel?: string; // подпись ссылки на страницу, по умолчанию «Подробнее»
   code?: string; // код на GitHub
 };
 
@@ -18,14 +19,18 @@ export const projects: Project[] = [
     tags: ['Python', 'API', 'парсинг HTML', 'pandas', 'scipy', 'ECharts'],
     status: 'ready',
     page: '/projects/tesera-bgg/',
+    pageLabel: 'Читать исследование',
     code: folder('Сравнение рейтингов Tesera и BGG'),
   },
   {
     title: 'Мониторинг рынка вакансий hh.ru',
-    summary: 'Работающий инструмент: парсер вакансий hh.ru и дашборд в Superset для отслеживания рынка труда аналитиков.',
-    tags: ['Python', 'hh.ru API', 'Superset'],
-    status: 'wip',
-    code: folder('Мониторинг рынка вакансий hh.ru'),
+    summary:
+      'Работающий инструмент: парсер вакансий hh.ru, база DuckDB и дашборды. Исследование рынка аналитиков на 08.09.2026 и интерактивный дашборд.',
+    tags: ['Python', 'Selenium', 'DuckDB', 'Superset', 'ECharts'],
+    status: 'ready',
+    page: '/projects/hh-market/',
+    pageLabel: 'Исследование и дашборд',
+    code: 'https://github.com/Viktor-VK/Real-time-analytics-hh/tree/wide-funnel',
   },
   {
     title: 'Кластеризация точек продаж',

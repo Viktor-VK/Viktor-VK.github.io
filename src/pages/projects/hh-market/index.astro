@@ -1,0 +1,104 @@
+---
+import Base from '../../../layouts/Base.astro';
+import ProjectCard from '../../../components/ProjectCard.astro';
+import type { Project } from '../../../data/projects';
+
+const repoUrl = 'https://github.com/Viktor-VK/Real-time-analytics-hh/tree/wide-funnel';
+const series = [
+  { n: 1, title: 'Предисловие: рынок глазами соискателя', href: 'https://t.me/zamkivp/4' },
+  { n: 2, title: 'Сбор данных: парсер и DuckDB', href: 'https://t.me/zamkivp/5' },
+  { n: 3, title: 'Анализ рынка в Superset', href: 'https://t.me/zamkivp/6' },
+];
+
+const works: Project[] = [
+  {
+    title: 'Исследование рынка на 08.09.2026',
+    summary:
+      'Разбор рынка аналитических вакансий: зарплаты, формат работы, география, компании, опыт, грейды и специализации. Шесть выводов для соискателя.',
+    tags: ['5,62 тыс. вакансий', 'Superset'],
+    status: 'ready',
+    page: '/projects/hh-market/research-2026-09-08/',
+    pageLabel: 'Читать исследование',
+  },
+  {
+    title: 'Дашборд рынка вакансий',
+    summary:
+      'Интерактивный дашборд по актуальному срезу: фильтры по городу, опыту, грейду, профилю и зарплате, распределение зарплат, список вакансий со ссылками на hh.ru.',
+    tags: ['интерактивно', 'ECharts'],
+    status: 'wip',
+  },
+];
+---
+
+<Base
+  title="Мониторинг рынка вакансий hh.ru"
+  description="Парсер вакансий hh.ru, база DuckDB и аналитика рынка труда аналитиков в РФ: исследование и интерактивный дашборд."
+>
+  <article>
+    <p class="muted crumbs"><a href="/#projects">Проекты</a> / мониторинг рынка вакансий</p>
+    <span class="eyebrow">Проект · Python, Selenium, DuckDB, Superset</span>
+    <h1>Мониторинг рынка вакансий аналитиков</h1>
+    <p class="lead">
+      Личный инструмент для анализа рынка труда аналитиков в РФ: парсер собирает все аналитические вакансии с hh.ru, база DuckDB хранит историю выгрузок, а дашборды показывают спрос по городам, опыту, грейдам, специализациям и зарплатам.
+    </p>
+
+    <h2>Работы по проекту</h2>
+    <div class="grid">
+      {works.map((p) => <ProjectCard project={p} />)}
+    </div>
+
+    <h2>Как устроено</h2>
+    <ol class="pipeline">
+      <li>
+        <strong>Сбор.</strong> Парсер на Python (Selenium + BeautifulSoup) проходит 32 сегмента поиска: регион × опыт × формат работы × наличие зарплаты. Так поиск по «аналитик» покрывает весь рынок, а не первые страницы выдачи. Полный прогон - около 40 минут и несколько тысяч вакансий.
+      </li>
+      <li>
+        <strong>Хранение.</strong> Вакансии после дедупликации попадают в DuckDB. Для каждой хранится дата первого и последнего появления, поэтому актуальный срез - это вакансии, которые были на hh.ru в последней выгрузке.
+      </li>
+      <li>
+        <strong>Разметка.</strong> По названию вакансии SQL-правила определяют грейд (junior, middle, senior, lead) и специализацию (системный, бизнес-, 1С-, инвест-, дата-аналитик и другие).
+      </li>
+      <li>
+        <strong>Анализ.</strong> Рабочий дашборд - в Apache Superset на сервере, в Docker. Для сайта данные выгружаются в статичный дашборд, который работает прямо в браузере.
+      </li>
+    </ol>
+    <p class="muted">
+      Парсер запускается вручную, по необходимости, а не по расписанию: так меньше нагрузка на hh.ru и нет риска антибот-блокировок.
+    </p>
+
+    <h2>Серия постов в канале</h2>
+    <ul class="series">
+      {series.map((s) => <li><a href={s.href}>Часть {s.n}. {s.title}</a></li>)}
+    </ul>
+
+    <p class="actions">
+      <a class="btn primary" href={repoUrl}>Код проекта на GitHub</a>
+    </p>
+  </article>
+</Base>
+
+<style>
+  article {
+    max-width: 52rem;
+  }
+
+  .crumbs {
+    margin: 0 0 16px;
+    font-size: 0.9rem;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+    gap: 16px;
+  }
+
+  .pipeline li,
+  .series li {
+    margin-bottom: 8px;
+  }
+
+  .actions {
+    margin-top: 32px;
+  }
+</style>

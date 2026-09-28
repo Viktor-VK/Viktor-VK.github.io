@@ -20,7 +20,7 @@ const { project } = Astro.props;
     {project.tags.map((t) => <li>{t}</li>)}
   </ul>
   <div class="links">
-    {project.page && <a href={project.page}>Читать исследование →</a>}
+    {project.page && <a href={project.page}>{project.pageLabel ?? 'Подробнее'} →</a>}
     {project.code && <a href={project.code}>Код на GitHub →</a>}
   </div>
 </article>
