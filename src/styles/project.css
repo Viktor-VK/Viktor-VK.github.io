@@ -260,3 +260,17 @@
     margin-top: 0;
   }
 }
+
+/* раскрывающийся блок с технической подробностью */
+.project-page details.more {
+  margin: 20px 0;
+  padding: 14px 16px;
+}
+
+.project-page details.more summary {
+  color: var(--text);
+}
+
+.project-page details.more[open] summary {
+  margin-bottom: 8px;
+}
