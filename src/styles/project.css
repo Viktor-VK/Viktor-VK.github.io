@@ -274,3 +274,37 @@
 .project-page details.more[open] summary {
   margin-bottom: 8px;
 }
+
+/* цепочки уровней справочника товаров */
+.project-page .chain {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.project-page .chain li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.project-page .chain-arrow {
+  color: var(--muted);
+}
+
+.project-page .chain-unit {
+  font-weight: 700;
+}
+
+.project-page .chain-unit .muted {
+  font-weight: 400;
+}

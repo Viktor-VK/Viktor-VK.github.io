@@ -13,6 +13,8 @@ const mlnS = (x: number) => sign(x) + num(Math.abs(x) / 1e6) + ' млн ₽';
 const mlnAbs = (x: number) => num(Math.abs(x) / 1e6) + ' млн ₽';
 const pctS = (x: number, base: number) => sign(x) + num(Math.abs(x / base) * 100) + '%';
 
+const goods = (n: number) =>
+  `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'товар' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'товара' : 'товаров'}`;
 const fact = variants.find((v) => v.variant === 'факт')!;
 const best = variants.find((v) => v.selected)!;
 const cands = variants.filter((v) => v.variant !== 'факт');
@@ -65,6 +67,25 @@ const optimism = auto.d_profit_train !== 0 ? 1 - auto.d_profit_test / auto.d_pro
     <p>
       Товары объединяются в <strong>юниты</strong> - группы взаимозаменяемых товаров, которые решают одну задачу покупателя. Для лекарств это действующее вещество плюс форма («ибупрофен, таблетки»), для остального ассортимента - вид товара («подгузники», «зубная паста»). Внутри юнита товары конкурируют, а матрице важно, чтобы сам юнит был на полке.
     </p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Как товар раскладывается по уровням справочника</strong>
+        <span class="muted">Категория → подкатегория → юнит (сколько в нём товаров) → самый продаваемый товар юнита.</span>
+      </figcaption>
+      <ul class="chain">
+        {data.hierarchy.map((h) => (
+          <li>
+            <span>{h.category}</span><span class="chain-arrow" aria-hidden="true">→</span>
+            <span>{h.subcategory}</span><span class="chain-arrow" aria-hidden="true">→</span>
+            <span class="chain-unit">{h.unit} <span class="muted">({goods(h.n)})</span></span><span class="chain-arrow" aria-hidden="true">→</span>
+            <span class="muted">{h.product}</span>
+          </li>
+        ))}
+      </ul>
+      <p class="muted note">
+        Первые две строки - одно вещество, но разные потребности: таблетки от боли для взрослого и свечи от температуры для ребёнка, поэтому это разные юниты. А все таблетки ибупрофена - бренды, дженерики, разные дозировки и фасовки - лежат в одном юните и конкурируют между собой за место на полке.
+      </p>
+    </figure>
     <p>
       Каждый товар получает оценку вклада (Score): выручка на одну аптеку сегмента с поправкой на цену - в эконом-сегменте чуть выше ценится дешёвый товар, в премиальном - дорогой. Юниты делятся на классы по важности (ABC-анализ): юниты, которые вместе дают половину выручки сегмента, - класс A, следующие до 90% - класс B, остальные - C. Чем важнее класс, тем больше товаров юнита остаётся в матрице.
     </p>
