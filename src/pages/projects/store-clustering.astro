@@ -70,7 +70,7 @@ const kLabel: Record<string, string> = { 'Площадь': 'Площадь', 'В
       <ol>
         <li>Отбор действующих точек и чистка чеков бизнес-фильтрами.</li>
         <li>Три независимые кластеризации (иерархическая, метод Уорда): по размеру, по ценовому профилю, по ассортиментному профилю.</li>
-        <li>Автоматическое сведение трёх разбиений в понятные сегменты вида «Малые медиум · сердце и кровь».</li>
+        <li>Автоматическое сведение трёх разбиений в понятные сегменты вида «{ex.segment}».</li>
         <li>Проверка: совпадают ли сегменты со структурой, заложенной в данные при генерации.</li>
       </ol>
     </section>
@@ -152,7 +152,7 @@ const kLabel: Record<string, string> = { 'Площадь': 'Площадь', 'В
       <li><strong>Три метки.</strong> Каждая аптека получает кластер по деньгам, ценовой и ассортиментный кластер - их считают три независимых алгоритма.</li>
       <li><strong>Размер и цена - в уровни.</strong> Кластеры упорядочиваются по средней выручке и по индексу «доля дорогого минус доля дешёвого». Размер получает названия по шкале «малые - небольшие - средние - большие - крупные» (сколько кластеров, столько слов). Для цены крайние кластеры - «эконом» и «премиум», промежуточные - «медиум»; если их два, они различаются как «медиум -» (ближе к эконому) и «медиум +» (ближе к премиуму).</li>
       <li><strong>Ассортимент - в уклон.</strong> Категории с индексом от 1,3 (не больше двух) дают название уклона, если таких нет - «универсальный».</li>
-      <li><strong>Склейка.</strong> Сегмент - сочетание трёх названий, например «Средние эконом · сердце и кровь». Из {data.segments_raw} встретившихся сочетаний часть содержит всего 1-4 аптеки: такое сочетание вливается в ближайший крупный сегмент - тот, на который его аптеки больше всего похожи по деньгам, цене и ассортименту вместе. Остаётся {segments.length} сегментов.</li>
+      <li><strong>Склейка.</strong> Сегмент - сочетание трёх названий в порядке «размер · уклон · цена», например «{ex.segment}». Из {data.segments_raw} встретившихся сочетаний часть содержит всего 1-4 аптеки: такое сочетание вливается в ближайший крупный сегмент - тот, на который его аптеки больше всего похожи по деньгам, цене и ассортименту вместе. Остаётся {segments.length} сегментов.</li>
     </ol>
     <figure class="card chart-card">
       <figcaption>
@@ -165,14 +165,7 @@ const kLabel: Record<string, string> = { 'Площадь': 'Площадь', 'В
           {data.size_clusters.map((c) => (
             <div class={c.cluster === ex.size_cluster ? 'scheme-item hit' : 'scheme-item'}><span>{c.cluster} ({c.n})</span><span>→ {c.level}</span></div>
           ))}
-          <div class="scheme-rule">по средней выручке: крайние - «малые» и «крупные»</div>
-        </div>
-        <div class="scheme-col">
-          <div class="scheme-head"><strong>Цена</strong><span>кластеры по долям дешёвого и дорогого</span></div>
-          {data.price_clusters.map((c) => (
-            <div class={c.cluster === ex.price_cluster ? 'scheme-item hit' : 'scheme-item'}><span>{c.cluster} ({c.n})</span><span>→ {c.level}</span></div>
-          ))}
-          <div class="scheme-rule">по индексу «high - low»: крайние - «эконом» и «премиум»</div>
+          <div class="scheme-rule">по средней выручке: шкала от «малых» до «крупных»</div>
         </div>
         <div class="scheme-col">
           <div class="scheme-head"><strong>Ассортимент</strong><span>кластеры по долям категорий</span></div>
@@ -181,11 +174,18 @@ const kLabel: Record<string, string> = { 'Площадь': 'Площадь', 'В
           ))}
           <div class="scheme-rule">категории с индексом от 1,3, не больше двух</div>
         </div>
+        <div class="scheme-col">
+          <div class="scheme-head"><strong>Цена</strong><span>кластеры по долям дешёвого и дорогого</span></div>
+          {data.price_clusters.map((c) => (
+            <div class={c.cluster === ex.price_cluster ? 'scheme-item hit' : 'scheme-item'}><span>{c.cluster} ({c.n})</span><span>→ {c.level}</span></div>
+          ))}
+          <div class="scheme-rule">по индексу «high - low»: крайние - «эконом» и «премиум»</div>
+        </div>
       </div>
       <div class="scheme-arrow" aria-hidden="true">↓</div>
       <div class="scheme-result">
-        <strong>Сегмент = размер + цена + уклон</strong>
-        <span>{ex.code}: {ex.size_cluster} + {ex.price_cluster} + {ex.assort_cluster} = «{ex.segment}»</span>
+        <strong>Сегмент = размер · уклон · цена</strong>
+        <span>{ex.code}: {ex.size_cluster} + {ex.assort_cluster} + {ex.price_cluster} = «{ex.segment}»</span>
         <span class="muted">Сочетания меньше 5 аптек вливаются в ближайший по профилю сегмент.</span>
       </div>
     </figure>
