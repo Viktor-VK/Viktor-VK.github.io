@@ -14,6 +14,8 @@ const thousands = (x: number) => num(x / 1000, 0) + ' тыс.';
 const date = (s: string) => new Date(s).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 const premium = segments.filter((s) => s.segment.includes('премиум'));
 const economy = segments.filter((s) => s.segment.includes('эконом'));
+const kOrder = ['Площадь', 'Выручка и чеки', 'Ценовой профиль', 'Ассортиментный профиль'];
+const kLabel: Record<string, string> = { 'Площадь': 'Площадь', 'Выручка и чеки': 'Деньги', 'Ценовой профиль': 'Цена', 'Ассортиментный профиль': 'Ассортимент' };
 ---
 
 <Base
@@ -58,7 +60,7 @@ const economy = segments.filter((s) => s.segment.includes('эконом'));
 
     <h2>2. Размер: площадь и деньги</h2>
     <p>
-      Размер точки меряется двумя способами: площадью торгового зала и «весом» в деньгах (выручка и число чеков). Их расхождение само по себе сигнал: большая площадь со слабыми продажами или маленькая точка с огромным трафиком. Число кластеров не задаётся руками, а выбирается по «локтю» дендрограммы: здесь получилось {meta.k_size} кластера по деньгам.
+      Размер точки меряется двумя способами: площадью торгового зала и «весом» в деньгах (выручка и число чеков). Их расхождение само по себе сигнал: большая площадь со слабыми продажами или маленькая точка с огромным трафиком. Число кластеров выбирается автоматически, как - в следующем разделе.
     </p>
     <figure class="card chart-card">
       <figcaption>
@@ -68,7 +70,32 @@ const economy = segments.filter((s) => s.segment.includes('эконом'));
       <div id="chart-size" class="chart chart-tall" role="img" aria-label="Диаграмма рассеяния выручки и числа чеков точек"></div>
     </figure>
 
-    <h2>3. Цена: дорогой или дешёвый товар выбирают покупатели</h2>
+
+    <h2>3. Как выбирается число кластеров</h2>
+    <p>
+      Иерархическая кластеризация склеивает точки снизу вверх: сначала каждая аптека - отдельная группа, затем на каждом шаге объединяются две самые похожие группы, пока не останется одна. У каждого склеивания есть «цена» - насколько выросла разнородность внутри групп. Пока объединяются похожие точки, цена маленькая. Когда приходится склеивать действительно разные группы, она резко подскакивает. Останавливаемся перед скачком - это и есть «локоть».
+    </p>
+    <p>
+      Для проверки используется второй, независимый критерий - коэффициент силуэта: насколько каждая точка ближе к своей группе, чем к соседней (от -1 до 1, выше - чётче разделение). Если оба критерия указывают на одно и то же число, выбор надёжный. Число кластеров ищется в разумном для бизнеса диапазоне: деление сети всего на две группы для решений бесполезно.
+    </p>
+    <p>
+      По площади и цене оба критерия указывают на одно и то же число. По деньгам силуэт чуть выше при двух группах, но это как раз бесполезное деление на «маленькие» и «большие». У ассортимента структура слабее: цена склеивания растёт плавно, а силуэт почти одинаков при 5-8 кластерах, поэтому там выбор менее однозначен - обычное дело для данных с десятком признаков.
+    </p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Выбор числа кластеров: цена склеивания и силуэт</strong>
+        <span class="muted">Столбец k - цена шага от k групп к k-1. Выделен выбранный вариант, фон - допустимый диапазон.</span>
+      </figcaption>
+      <div class="seg" id="k-switch" role="group" aria-label="Кластеризация">
+        {Object.keys(data.k_selection).sort((a, b) => kOrder.indexOf(a) - kOrder.indexOf(b)).map((name) => (
+          <button type="button" data-k={name} class={name === 'Выручка и чеки' ? 'on' : ''}>{kLabel[name]}</button>
+        ))}
+      </div>
+      <div id="chart-k" class="chart chart-tall" role="img" aria-label="Цена склеивания и коэффициент силуэта по числу кластеров"></div>
+      <p class="muted note" id="k-note"></p>
+    </figure>
+
+    <h2>4. Цена: дорогой или дешёвый товар выбирают покупатели</h2>
     <p>
       Сначала каждый товар получает ценовой уровень внутри своей подкатегории: дешевле 30-го перцентиля - low, дороже 70-го - high. Цена приводится к одной дозе: упаковка на 100 таблеток не должна казаться «дороже» упаковки на 10. Затем точка описывается долями выручки в low, medium и high и кластеризуется по этому профилю.
     </p>
@@ -80,7 +107,7 @@ const economy = segments.filter((s) => s.segment.includes('эконом'));
       <div id="chart-price" class="chart" role="img" aria-label="Столбчатая диаграмма ценовых профилей кластеров"></div>
     </figure>
 
-    <h2>4. Ассортимент: на что «заточена» точка</h2>
+    <h2>5. Ассортимент: на что «заточена» точка</h2>
     <p>
       Точка описывается долями категорий в своей выручке, независимо от размера. Индекс категории в кластере показывает, во сколько раз её доля выше или ниже средней по сети. По нему кластер и получает название: категории с индексом от 1,3 - это его «уклон».
     </p>
@@ -92,7 +119,7 @@ const economy = segments.filter((s) => s.segment.includes('эконом'));
       <div id="chart-assort" class="chart chart-tall" role="img" aria-label="Тепловая карта индексов категорий по ассортиментным кластерам"></div>
     </figure>
 
-    <h2>5. Итоговые сегменты</h2>
+    <h2>6. Итоговые сегменты</h2>
     <p>
       В рабочей версии этот шаг был ручным: результаты трёх кластеризаций сводили в Excel и придумывали названия. Здесь он формализован. Кластеры размера и цены упорядочиваются по среднему значению: крайние получают уровни «малые» / «крупные» и «эконом» / «премиум», промежуточные - «средние» и «медиум». К ним добавляется ассортиментный уклон.
     </p>
@@ -120,7 +147,7 @@ const economy = segments.filter((s) => s.segment.includes('эконом'));
       Сегменты читаются как управленческие решения. Премиальный сегмент ({premium.map((s) => s.n).reduce((a, b) => a + b, 0)} точек) с уклоном в косметику и БАД - кандидат на расширенную матрицу лечебной косметики. Эконом-сегменты ({economy.map((s) => s.n).reduce((a, b) => a + b, 0)} точек) с уклоном в препараты для сердца и крови - на широкий выбор недорогих дженериков. Матрица под каждый сегмент - в следующем проекте.
     </p>
 
-    <h2>6. Проверка: нашёл ли алгоритм то, что заложено в данные</h2>
+    <h2>7. Проверка: нашёл ли алгоритм то, что заложено в данные</h2>
     <p>
       Такая проверка возможна только на синтетике. Генератор заложил в каждую точку скрытый архетип (центральная аптека, у дома, дискаунтер, премиум, в ТЦ, сельская, при поликлинике), а алгоритм его не видел. Мера совпадения - скорректированный индекс Рэнда: 0 - случайное разбиение, 1 - полное совпадение.
     </p>
@@ -202,6 +229,55 @@ const economy = segments.filter((s) => s.segment.includes('эконом'));
         data: stores.filter((s) => s[7].startsWith(lv)),
         itemStyle: { color: C.series[[0, 2, 1][i]], opacity: 0.85, borderColor: C.surface, borderWidth: 1 },
       })),
+    });
+
+    // выбор числа кластеров: цена склеивания (столбцы) и силуэт (линия), переключатель кластеризаций
+    const K = data.k_selection as Record<string, { k: number[]; cost: number[]; silhouette: number[]; chosen: number; k_min: number; k_max: number }>;
+    const kChart = init('chart-k');
+    const drawK = (name: string) => {
+      const d = K[name];
+      const cats = d.k.map(String);
+      const iChosen = d.k.indexOf(d.chosen);
+      const iBest = d.silhouette.indexOf(Math.max(...d.silhouette));
+      const f2 = (x: number) => x.toFixed(2).replace('.', ',');
+      kChart.setOption({
+        ...base,
+        tooltip: { ...base.tooltip, trigger: 'axis', axisPointer: { type: 'shadow' },
+          formatter: (ps: any) => `<b>k = ${ps[0].axisValue}</b><br/>` + ps.map((p: any) =>
+            `${p.seriesName}: ${f2(p.value)}`).join('<br/>') },
+        axisPointer: { link: [{ xAxisIndex: 'all' }] },
+        grid: [{ left: 48, right: 16, top: 28, height: '38%' }, { left: 48, right: 16, top: '62%', bottom: 36 }],
+        xAxis: [0, 1].map((i) => ({ ...axis, type: 'category', gridIndex: i, data: cats, splitLine: { show: false },
+          name: i === 1 ? 'число кластеров k' : '', nameLocation: 'middle', nameGap: 26, axisLabel: { color: C.muted, show: i === 1 } })),
+        yAxis: [
+          { ...axis, type: 'value', gridIndex: 0, name: 'цена склеивания', nameTextStyle: { color: C.muted, align: 'left' } },
+          { ...axis, type: 'value', gridIndex: 1, name: 'силуэт', scale: true, nameTextStyle: { color: C.muted, align: 'left' },
+            axisLabel: { color: C.muted, formatter: (x: number) => f2(x) } },
+        ],
+        series: [
+          { name: 'цена шага k → k-1', type: 'bar', xAxisIndex: 0, yAxisIndex: 0, barMaxWidth: 30,
+            data: d.cost.map((v, i) => ({ value: v, itemStyle: { color: i === iChosen ? C.accent : C.series[5], borderRadius: [4, 4, 0, 0] } })),
+            markArea: { silent: true, itemStyle: { color: C.accent, opacity: 0.07 },
+              data: [[{ xAxis: String(d.k_min) }, { xAxis: String(d.k_max) }]] } },
+          { name: 'силуэт', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: d.silhouette, symbolSize: 7,
+            lineStyle: { color: C.series[0], width: 2 },
+            itemStyle: { color: C.series[0] },
+            markLine: { silent: true, symbol: 'none', lineStyle: { color: C.accent, type: 'dashed' },
+              label: { color: C.muted, formatter: `выбрано k = ${d.chosen}` }, data: [{ xAxis: String(d.chosen) }] } },
+        ],
+      }, true);
+      const same = iBest === iChosen;
+      document.getElementById('k-note')!.textContent = same
+        ? `Локоть и силуэт согласны: k = ${d.chosen}, силуэт ${f2(d.silhouette[iChosen])} - максимальный.`
+        : `Локоть выбрал k = ${d.chosen} (силуэт ${f2(d.silhouette[iChosen])}), максимум силуэта при k = ${d.k[iBest]} (${f2(d.silhouette[iBest])}) - разница небольшая.`;
+    };
+    const current = () => (document.querySelector('#k-switch button.on') as HTMLElement)?.dataset.k ?? 'Выручка и чеки';
+    drawK(current());
+    document.querySelectorAll<HTMLButtonElement>('#k-switch button').forEach((b) => {
+      b.onclick = () => {
+        document.querySelectorAll('#k-switch button').forEach((x) => x.classList.toggle('on', x === b));
+        drawK(b.dataset.k!);
+      };
     });
 
     // цена: профиль ценовых кластеров
