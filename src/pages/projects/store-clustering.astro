@@ -41,7 +41,7 @@ const premium = segments.filter((s) => s.segment.includes('премиум'));
 const economy = segments.filter((s) => s.segment.includes('эконом'));
 const premiumN = premium.map((s) => s.n).reduce((a, b) => a + b, 0);
 const economyN = economy.map((s) => s.n).reduce((a, b) => a + b, 0);
-const auto = matrix.experiment.find((e) => e.method === 'Автосегменты')!;
+const budget = matrix.budget_profit as Record<string, number>;
 const sgn = (x: number) => (x > 0 ? '+' : x < 0 ? '-' : '');
 const mlnAbs = (x: number) => num(Math.abs(x) / 1e6, 1) + ' млн ₽';
 const mlnS = (x: number) => sgn(x) + mlnAbs(x);
@@ -72,7 +72,7 @@ const kLabel: Record<string, string> = { 'Площадь': 'Площадь', 'В
       <ul>
         <li><strong>Задача.</strong> Один ассортимент на всю сеть означает излишки в одних точках и упущенную выручку в других. Нужно понять, какие типы точек есть в сети.</li>
         <li><strong>Что сделано.</strong> {meta.stores_used} аптек разбиты на {meta.segments} сегментов по размеру, ассортименту и ценам - полностью автоматически, с понятными названиями вида «{ex.segment}».</li>
-        <li><strong>Результат.</strong> Ассортиментные матрицы, построенные по этим сегментам, на новых неделях дают {mlnS(auto.d_profit_test)} прибыли и освобождают {mlnAbs(auto.d_stock)} в остатках. Одна матрица на всю сеть и текущее деление по площади дают минус. Подробности - на <a href="/projects/assortment-matrix/">странице матрицы</a>.</li>
+        <li><strong>Результат.</strong> Ассортиментные матрицы, построенные по этим сегментам, при тех же деньгах в остатках дают на новых неделях {mlnS(budget['Автосегменты'])} прибыли. Одна матрица на всю сеть при том же бюджете даёт {mlnS(budget['Одна матрица на сеть'])}, текущее деление по площади - {mlnS(budget['Категории A-E'])}. Подробности - на <a href="/projects/assortment-matrix/">странице матрицы</a>.</li>
       </ul>
     </section>
 
