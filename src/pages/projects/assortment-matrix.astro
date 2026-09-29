@@ -1,0 +1,207 @@
+---
+import Base from '../../layouts/Base.astro';
+import data from '../../data/assortment-matrix.json';
+import '../../styles/project.css';
+
+const codeUrl = 'https://github.com/Viktor-VK/portfolio/tree/master/' + encodeURIComponent('Скоринг и выбор ассортиментной матрицы');
+const { meta, variants, width } = data;
+
+const num = (x: number, d = 1) => x.toFixed(d).replace('.', ',');
+const int = (x: number) => Math.round(x).toLocaleString('ru-RU');
+const sign = (x: number) => (x > 0 ? '+' : x < 0 ? '-' : '');
+const mlnS = (x: number) => sign(x) + num(Math.abs(x) / 1e6) + ' млн ₽';
+const pctS = (x: number, base: number) => sign(x) + num(Math.abs(x / base) * 100) + '%';
+
+const fact = variants.find((v) => v.variant === 'факт')!;
+const best = variants.find((v) => v.selected)!;
+const soft = variants.find((v) => v.variant === 'мягкий')!;
+const strict = variants.find((v) => v.variant === 'строгий')!;
+---
+
+<Base
+  title="Выбор ассортиментной матрицы"
+  description="Score товара, ABC-классификация юнитов и выбор ассортиментной матрицы для каждого сегмента точек: сравнение кандидатов с действующей матрицей по деньгам."
+>
+  <article class="project-page">
+    <p class="muted crumbs"><a href="/#projects">Проекты</a> / скоринг и выбор ассортиментной матрицы</p>
+    <span class="eyebrow">Проект · Python, SQL, DuckDB</span>
+    <h1>Score товара и выбор ассортиментной матрицы</h1>
+    <p class="lead">
+      Продолжение <a href="/projects/store-clustering/">кластеризации точек</a>: сегменты найдены, теперь под каждый нужна своя матрица - список товаров, которые обязаны быть на полке. Решение принимается не по вкусу категорийного менеджера, а по измеримому вкладу товара и с проверкой, что новая матрица не хуже действующей по деньгам.
+    </p>
+
+    <div class="card notice">
+      <p>
+        <strong>Данные синтетические:</strong> та же сгенерированная аптечная сеть, что и в кластеризации. Справочник лекарств - из открытого реестра ЖНВЛП, продажи, остатки и действующая матрица сгенерированы.
+      </p>
+    </div>
+
+    <dl class="facts">
+      <div class="card"><dt>Сегментов точек</dt><dd>{meta.segments}</dd></div>
+      <div class="card"><dt>Юнитов</dt><dd>{meta.units}</dd></div>
+      <div class="card"><dt>Позиций в действующих матрицах</dt><dd>{int(meta.matrix_fact)}</dd></div>
+      <div class="card"><dt>Выбранный вариант</dt><dd>{best.variant}</dd></div>
+    </dl>
+
+    <section class="card summary">
+      <span class="eyebrow">Результат</span>
+      <p>
+        Вариант «{best.variant}» сокращает матрицы на {int(-best.d_positions)} позиций и освобождает {mlnS(-best.d_stock).replace('+', '')} в остатках ({pctS(best.d_stock, fact.stock)}), при этом выручка {best.d_revenue >= 0 ? 'растёт' : 'меняется'} на {pctS(best.d_revenue, fact.revenue)}, прибыль - на {pctS(best.d_profit, fact.profit)}. Рост достигается за счёт того, что в матрицу возвращаются продаваемые товары, которых в действующей не было, а залежавшиеся уходят.
+      </p>
+    </section>
+
+    <h2>1. Score товара и юниты</h2>
+    <p>
+      <strong>Юнит</strong> - группа взаимозаменяемых товаров: одна и та же потребность покупателя. Для лекарств это МНН плюс лекарственная форма («ибупрофен, таблетки»), для остального ассортимента - подкатегория и вид товара. Внутри юнита товары конкурируют между собой, а матрице важно, чтобы юнит был представлен.
+    </p>
+    <p>
+      <strong>Score</strong> - выручка товара в сегменте на одну точку с поправкой на ценовой уровень: в эконом-сегменте дешёвый товар своей подкатегории получает бонус, в премиальном - дорогой. Score юнита - сумма по его товарам.
+    </p>
+
+    <h2>2. ABC-классы юнитов</h2>
+    <p>
+      Юниты сегмента сортируются по Score. Первые, которые вместе дают 50% Score сегмента, - класс A, следующие до 90% - класс B, остальные - C. Это классический ABC-анализ, но применённый к потребности, а не к конкретному SKU. Чем важнее класс юнита, тем мягче порог для товаров внутри него.
+    </p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Кривая Парето юнитов, сегмент «{meta.pareto_segment}»</strong>
+        <span class="muted">Юниты по убыванию Score. Около 10% юнитов дают половину Score сегмента.</span>
+      </figcaption>
+      <div id="chart-pareto" class="chart" role="img" aria-label="Кривая Парето юнитов с классами A, B, C"></div>
+    </figure>
+
+    <h2>3. Кандидаты на матрицу против действующей</h2>
+    <p>
+      Кандидаты строятся двумя методами. <strong>ABC-пороги</strong>: у каждого класса юнита свой минимум доли товара в Score юнита (мягкий, средний и строгий наборы порогов). <strong>Экспоненциальный порог</strong>: порог плавно зависит от веса юнита в сегменте, строгость задаёт параметр λ. Все защищённые позиции - минимальный ассортимент и собственная марка - входят в матрицу при любом Score.
+    </p>
+    <p>
+      Каждый кандидат сравнивается с действующей матрицей по деньгам: остатки, выручка, прибыль. Если товар исключён, половина его продаж переходит на аналоги из того же юнита, иначе любое сокращение выглядело бы прямой потерей.
+    </p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Изменение остатков и прибыли относительно действующей матрицы</strong>
+        <span class="muted">Точка - вариант матрицы. Интересен левый верхний угол: меньше денег в остатках, больше прибыли.</span>
+      </figcaption>
+      <div id="chart-variants" class="chart chart-tall" role="img" aria-label="Диаграмма вариантов матрицы: изменение остатков и прибыли"></div>
+      <details>
+        <summary>Все варианты</summary>
+        <table class="data">
+          <thead><tr><th>Вариант</th><th class="num">Позиций</th><th class="num">Δ остатки</th><th class="num">Δ выручка</th><th class="num">Δ прибыль</th></tr></thead>
+          <tbody>
+            {variants.filter((v) => v.variant !== 'факт').map((v) => (
+              <tr>
+                <td>{v.selected ? <strong>{v.variant}</strong> : v.variant}</td>
+                <td class="num">{int(v.positions)}</td>
+                <td class="num nowrap">{mlnS(v.d_stock)}</td>
+                <td class="num nowrap">{mlnS(v.d_revenue)}</td>
+                <td class="num nowrap">{mlnS(v.d_profit)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </details>
+    </figure>
+    <p>
+      Видна цена выбора. «Мягкий» вариант даёт больше всего прибыли ({mlnS(soft.d_profit)}), но требует {mlnS(soft.d_stock)} остатков. «Строгий» освобождает {mlnS(-strict.d_stock).replace('+', '')}, но теряет {mlnS(strict.d_profit).replace('-', '')} прибыли. В рабочей версии вариант выбирали вручную по такому графику. Здесь правило формализовано: из вариантов, которые не увеличивают остатки, берётся вариант с максимальной прибылью. Им стал «{best.variant}».
+    </p>
+
+    <h2>4. Матрица по сегментам</h2>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Ширина матрицы: действующая и выбранная</strong>
+        <span class="muted">Позиций в матрице сегмента, сегменты по числу точек.</span>
+      </figcaption>
+      <div id="chart-width" class="chart chart-tall" role="img" aria-label="Столбчатая диаграмма ширины матриц по сегментам"></div>
+    </figure>
+
+    <h2>Что изменилось относительно рабочего расчёта</h2>
+    <ul>
+      <li>Юниты построены из справочника товаров (МНН + лекформа), в рабочей версии был готовый справочник юнитов.</li>
+      <li>Добавлено переключение спроса на аналоги внутри юнита при исключении товара.</li>
+      <li>Выбор варианта формализован правилом вместо ручного выбора по графику.</li>
+      <li>В экспоненциальный порог подаётся вес юнита относительно крупнейшего юнита сегмента: при сотнях юнитов абсолютные доли слишком малы.</li>
+    </ul>
+
+    <p class="actions">
+      <a class="btn primary" href={codeUrl}>Ноутбук на GitHub</a>
+      <a class="btn" href="/projects/store-clustering/">Назад: кластеризация точек</a>
+    </p>
+  </article>
+</Base>
+
+<script>
+  import data from '../../data/assortment-matrix.json';
+  import { mountCharts, int, mln, signed } from '../../scripts/charts';
+
+  mountCharts((init, { C, base, axis }) => {
+    const narrow = window.innerWidth < 560;
+    const classColor: Record<string, string> = { A: C.series[1], B: C.series[0], C: C.series[5] };
+
+    // Парето
+    const pts = data.pareto as [number, number, string][];
+    init('chart-pareto').setOption({
+      ...base,
+      legend: { top: 0, textStyle: { color: C.muted }, itemWidth: 10, itemHeight: 10 },
+      grid: { left: 52, right: 16, top: 36, bottom: 44 },
+      tooltip: { ...base.tooltip, trigger: 'axis',
+        formatter: (ps: any) => `${Math.round(ps[0].data[0] * 100)}% юнитов дают ${Math.round(ps[0].data[1] * 100)}% Score` },
+      xAxis: { ...axis, type: 'value', max: 1, name: 'доля юнитов', nameLocation: 'middle', nameGap: 28,
+        axisLabel: { color: C.muted, formatter: (x: number) => Math.round(x * 100) + '%' } },
+      yAxis: { ...axis, type: 'value', max: 1, axisLabel: { color: C.muted, formatter: (x: number) => Math.round(x * 100) + '%' } },
+      series: ['A', 'B', 'C'].map((s) => {
+        const part = pts.filter((p) => p[2] === s);
+        return {
+          name: `класс ${s}: ${part.length} юнитов`, type: 'line', showSymbol: false,
+          data: part, lineStyle: { color: classColor[s], width: 2 }, itemStyle: { color: classColor[s] },
+          areaStyle: { color: classColor[s], opacity: 0.25 },
+        };
+      }),
+    });
+
+    // варианты: Δ остатки × Δ прибыль
+    const vs = data.variants.filter((v) => v.variant !== 'факт');
+    const pt = (v: any) => [v.d_stock / 1e6, v.d_profit / 1e6, v.variant, v.d_revenue, v.selected];
+    const lab = (s: string) => s.replace('экспоненциальный ', 'эксп. ');
+    init('chart-variants').setOption({
+      ...base,
+      legend: { top: 0, textStyle: { color: C.muted }, itemWidth: 10, itemHeight: 10 },
+      grid: { left: 56, right: narrow ? 24 : 40, top: 40, bottom: 48 },
+      tooltip: { ...base.tooltip, formatter: (p: any) => {
+        const [s, pr, name, rev] = p.data;
+        return `<b>${name}</b><br/>Δ остатки: ${signed(mln(Math.abs(s * 1e6)), s)} млн ₽<br/>Δ прибыль: ${signed(mln(Math.abs(pr * 1e6)), pr)} млн ₽<br/>Δ выручка: ${signed(mln(Math.abs(rev)), rev)} млн ₽`;
+      } },
+      xAxis: { ...axis, type: 'value', name: 'Δ остатки, млн ₽', nameLocation: 'middle', nameGap: 30 },
+      yAxis: { ...axis, type: 'value', name: 'Δ прибыль, млн ₽', nameLocation: 'middle', nameGap: 36 },
+      series: [
+        { name: 'ABC-пороги', type: 'scatter', symbolSize: 13, data: vs.filter((v) => !v.variant.startsWith('эксп')).map(pt),
+          itemStyle: { color: C.series[0] },
+          label: { show: true, position: 'top', color: C.text, formatter: (p: any) => lab(p.data[2]) + (p.data[4] ? ' ✓' : '') } },
+        { name: 'экспоненциальный порог', type: 'scatter', symbol: 'diamond', symbolSize: 14,
+          data: vs.filter((v) => v.variant.startsWith('эксп')).map(pt), itemStyle: { color: C.series[1] },
+          label: { show: !narrow, position: 'bottom', color: C.muted, formatter: (p: any) => lab(p.data[2]).replace('эксп. ', '') } },
+        { name: 'действующая матрица', type: 'scatter', symbolSize: 10, data: [[0, 0, 'действующая матрица', 0, false]],
+          itemStyle: { color: C.text },
+          label: { show: true, position: 'right', color: C.muted, formatter: 'факт' },
+          markLine: { silent: true, symbol: 'none', lineStyle: { color: C.muted, type: 'dashed', width: 1 },
+            label: { show: false }, data: [{ xAxis: 0 }, { yAxis: 0 }] } },
+      ],
+    });
+
+    // ширина матриц
+    const w = data.width;
+    init('chart-width').setOption({
+      ...base,
+      legend: { top: 0, textStyle: { color: C.muted }, itemWidth: 10, itemHeight: 10 },
+      grid: { left: narrow ? 150 : 290, right: 16, top: 36, bottom: 24 },
+      tooltip: { ...base.tooltip, trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (x: number) => int(x) },
+      xAxis: { ...axis, type: 'value', axisLabel: { color: C.muted, formatter: (x: number) => int(x) } },
+      yAxis: { ...axis, type: 'category', inverse: true, splitLine: { show: false },
+        data: w.map((x) => `${x.segment} (${x.n_stores})`),
+        axisLabel: { color: C.text, width: narrow ? 140 : 280, overflow: 'truncate', fontSize: narrow ? 10 : 12 } },
+      series: [
+        { name: 'действующая', type: 'bar', data: w.map((x) => x.fact), itemStyle: { color: C.series[5] }, barGap: '10%' },
+        { name: 'выбранная', type: 'bar', data: w.map((x) => x.new), itemStyle: { color: C.series[0] } },
+      ],
+    });
+  });
+</script>

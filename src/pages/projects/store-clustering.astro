@@ -1,0 +1,270 @@
+---
+import Base from '../../layouts/Base.astro';
+import data from '../../data/store-clustering.json';
+import '../../styles/project.css';
+
+const codeUrl = 'https://github.com/Viktor-VK/portfolio/tree/master/' + encodeURIComponent('Кластеризация точек продаж');
+const synthUrl = 'https://github.com/Viktor-VK/portfolio/tree/master/synthetic_data';
+const { meta, quality, segments } = data;
+
+const num = (x: number, d = 2) => x.toFixed(d).replace('.', ',');
+const int = (x: number) => Math.round(x).toLocaleString('ru-RU');
+const pct = (x: number) => Math.round(x * 100) + '%';
+const thousands = (x: number) => num(x / 1000, 0) + ' тыс.';
+const date = (s: string) => new Date(s).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+const premium = segments.filter((s) => s.segment.includes('премиум'));
+const economy = segments.filter((s) => s.segment.includes('эконом'));
+---
+
+<Base
+  title="Кластеризация точек продаж"
+  description="Сегментация аптечной сети по размеру, ценовому позиционированию и ассортиментному профилю: иерархическая кластеризация и автоматическое сведение в бизнес-сегменты."
+>
+  <article class="project-page">
+    <p class="muted crumbs"><a href="/#projects">Проекты</a> / кластеризация точек продаж</p>
+    <span class="eyebrow">Проект · Python, SQL, DuckDB, scipy</span>
+    <h1>Кластеризация точек продаж аптечной сети</h1>
+    <p class="lead">
+      Точки одной сети сильно различаются: центральная аптека, аптека у дома, дискаунтер, точка в торговом центре. Единый ассортимент для всех - это излишки в одних точках и упущенная выручка в других. Расчёт делит точки на сегменты с трёх сторон сразу: размер, цены и ассортимент.
+    </p>
+
+    <div class="card notice">
+      <p>
+        <strong>Данные синтетические.</strong> Рабочий расчёт шёл по данным реальной сети, публиковать которые нельзя. Здесь тот же код выполняется на сгенерированной базе: справочник лекарств взят из открытого реестра ЖНВЛП Минздрава, точки, чеки и остатки сгенерированы. Цифры не описывают реальный бизнес, но показывают, как работает метод.
+      </p>
+    </div>
+
+    <dl class="facts">
+      <div class="card"><dt>Аптек в расчёте</dt><dd>{meta.stores_used} из {meta.stores_all}</dd></div>
+      <div class="card"><dt>Строк чеков</dt><dd>{thousands(meta.lines_kept)}</dd></div>
+      <div class="card"><dt>Товаров</dt><dd>{int(meta.products)}</dd></div>
+      <div class="card"><dt>Итоговых сегментов</dt><dd>{meta.segments}</dd></div>
+    </dl>
+
+    <section class="card summary">
+      <span class="eyebrow">Как устроен расчёт</span>
+      <ol>
+        <li>Отбор действующих точек и чистка чеков бизнес-фильтрами.</li>
+        <li>Три независимые кластеризации (иерархическая, метод Уорда): по размеру, по ценовому профилю, по ассортиментному профилю.</li>
+        <li>Автоматическое сведение трёх разбиений в понятные сегменты вида «Малые медиум · сердце и кровь».</li>
+        <li>Проверка: совпадают ли сегменты со структурой, заложенной в данные при генерации.</li>
+      </ol>
+    </section>
+
+    <h2>1. Какие точки попадают в расчёт</h2>
+    <p>
+      В кластеризацию идут только аптеки, которые работают не меньше полугода: у новых точек ещё нет устойчивой истории продаж. Формат «оптика» сегментируется отдельно. Из чеков за {date(meta.period_from)} - {date(meta.period_to)} убираются опт, заказы через сторонние маркетплейсы, уценённый товар с коротким сроком годности и нетоварные позиции (пакеты, доставка): остаётся {thousands(meta.lines_kept)} строк из {thousands(meta.lines_all)}.
+    </p>
+
+    <h2>2. Размер: площадь и деньги</h2>
+    <p>
+      Размер точки меряется двумя способами: площадью торгового зала и «весом» в деньгах (выручка и число чеков). Их расхождение само по себе сигнал: большая площадь со слабыми продажами или маленькая точка с огромным трафиком. Число кластеров не задаётся руками, а выбирается по «локтю» дендрограммы: здесь получилось {meta.k_size} кластера по деньгам.
+    </p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Выручка и число чеков точек за 4 недели</strong>
+        <span class="muted">Точка - аптека, цвет - кластер по деньгам. Лучи из начала координат - форматы с разным средним чеком.</span>
+      </figcaption>
+      <div id="chart-size" class="chart chart-tall" role="img" aria-label="Диаграмма рассеяния выручки и числа чеков точек"></div>
+    </figure>
+
+    <h2>3. Цена: дорогой или дешёвый товар выбирают покупатели</h2>
+    <p>
+      Сначала каждый товар получает ценовой уровень внутри своей подкатегории: дешевле 30-го перцентиля - low, дороже 70-го - high. Цена приводится к одной дозе: упаковка на 100 таблеток не должна казаться «дороже» упаковки на 10. Затем точка описывается долями выручки в low, medium и high и кластеризуется по этому профилю.
+    </p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Средний ценовой профиль кластеров</strong>
+        <span class="muted">Доля выручки в дешёвом, среднем и дорогом товаре своей подкатегории.</span>
+      </figcaption>
+      <div id="chart-price" class="chart" role="img" aria-label="Столбчатая диаграмма ценовых профилей кластеров"></div>
+    </figure>
+
+    <h2>4. Ассортимент: на что «заточена» точка</h2>
+    <p>
+      Точка описывается долями категорий в своей выручке, независимо от размера. Индекс категории в кластере показывает, во сколько раз её доля выше или ниже средней по сети. По нему кластер и получает название: категории с индексом от 1,3 - это его «уклон».
+    </p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Индекс категорий в ассортиментных кластерах</strong>
+        <span class="muted">1,0 - как в среднем по сети. Красный - категория продаётся заметно больше среднего, синий - меньше. В скобках - число точек.</span>
+      </figcaption>
+      <div id="chart-assort" class="chart chart-tall" role="img" aria-label="Тепловая карта индексов категорий по ассортиментным кластерам"></div>
+    </figure>
+
+    <h2>5. Итоговые сегменты</h2>
+    <p>
+      В рабочей версии этот шаг был ручным: результаты трёх кластеризаций сводили в Excel и придумывали названия. Здесь он формализован. Кластеры размера и цены упорядочиваются по среднему значению: крайние получают уровни «малые» / «крупные» и «эконом» / «премиум», промежуточные - «средние» и «медиум». К ним добавляется ассортиментный уклон.
+    </p>
+    <div class="card table-card">
+      <table class="data">
+        <thead>
+          <tr><th>Сегмент</th><th class="num">Точек</th><th class="num">Площадь, м²</th><th class="num">Выручка, млн ₽</th><th class="num">Средний чек, ₽</th><th class="num">Доля high</th></tr>
+        </thead>
+        <tbody>
+          {segments.map((s) => (
+            <tr>
+              <td>{s.segment}</td>
+              <td class="num">{s.n}</td>
+              <td class="num">{s.square}</td>
+              <td class="num">{num(s.revenue / 1e6, 1)}</td>
+              <td class="num">{int(s.cheque)}</td>
+              <td class="num">{pct(s.high)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p class="muted note">Медианы по точкам сегмента за 4 недели, доля high - средняя доля выручки в дорогом товаре подкатегории.</p>
+    </div>
+    <p>
+      Сегменты читаются как управленческие решения. Премиальный сегмент ({premium.map((s) => s.n).reduce((a, b) => a + b, 0)} точек) с уклоном в косметику и БАД - кандидат на расширенную матрицу лечебной косметики. Эконом-сегменты ({economy.map((s) => s.n).reduce((a, b) => a + b, 0)} точек) с уклоном в препараты для сердца и крови - на широкий выбор недорогих дженериков. Матрица под каждый сегмент - в следующем проекте.
+    </p>
+
+    <h2>6. Проверка: нашёл ли алгоритм то, что заложено в данные</h2>
+    <p>
+      Такая проверка возможна только на синтетике. Генератор заложил в каждую точку скрытый архетип (центральная аптека, у дома, дискаунтер, премиум, в ТЦ, сельская, при поликлинике), а алгоритм его не видел. Мера совпадения - скорректированный индекс Рэнда: 0 - случайное разбиение, 1 - полное совпадение.
+    </p>
+    <div class="pair">
+      <div class="card stat"><span class="stat-label">Итоговые сегменты</span><span class="stat-value">{num(quality.segment)}</span></div>
+      <div class="card stat"><span class="stat-label">Только ассортимент</span><span class="stat-value">{num(quality.assort)}</span></div>
+      <div class="card stat"><span class="stat-label">Только цена</span><span class="stat-value">{num(quality.price)}</span></div>
+      <div class="card stat"><span class="stat-label">Только размер</span><span class="stat-value">{num(quality.size)}</span></div>
+    </div>
+    <p>
+      Ни один срез по отдельности не восстанавливает архетипы: размер и цена у разных форматов пересекаются. Вместе они дают {num(quality.segment)}, и почти каждый сегмент состоит из одного архетипа. До единицы не хватает в основном потому, что алгоритм делит архетип по размеру: аптеки у дома, в ТЦ, при поликлиниках и сельские разошлись на «малые» и «средние». Для управления ассортиментом это скорее плюс, чем ошибка.
+    </p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Из каких заложенных архетипов состоит каждый сегмент</strong>
+        <span class="muted">Число точек.</span>
+      </figcaption>
+      <div id="chart-arch" class="chart chart-tall" role="img" aria-label="Тепловая карта соответствия сегментов и архетипов"></div>
+    </figure>
+
+    <h2>Что изменилось относительно рабочего расчёта</h2>
+    <ul>
+      <li>Шесть ноутбуков сведены в один, ручных шагов нет: число кластеров и названия сегментов определяются правилами.</li>
+      <li>Ценовая кластеризация оставлена в варианте с ценой за дозу; число доз берётся из справочника товаров, а не из отдельного файла.</li>
+      <li>Собственная торговая марка исключена из ценового анализа: у неё своя модель ценообразования.</li>
+      <li>Добавлена проверка на заложенной структуре - на реальных данных «правильного ответа» нет.</li>
+    </ul>
+
+    <p class="actions">
+      <a class="btn primary" href="/projects/assortment-matrix/">Дальше: матрица под сегмент</a>
+      <a class="btn" href={codeUrl}>Ноутбук на GitHub</a>
+      <a class="btn" href={synthUrl}>Генератор данных</a>
+    </p>
+  </article>
+</Base>
+
+<script>
+  import data from '../../data/store-clustering.json';
+  import { mountCharts, int, pct } from '../../scripts/charts';
+
+  const SHORT: Record<string, string> = {
+    'БАД и витамины': 'БАД',
+    'Гигиена и косметика': 'Косметика',
+    'Дыхательная система': 'Простуда',
+    'Костно-мышечная система': 'Опорно-двиг.',
+    'Мать и дитя': 'Мать и дитя',
+    'Медицинские изделия': 'Медизделия',
+    'Мочеполовая система и половые гормоны': 'Урол. и гинек.',
+    'Нервная система': 'Нервная сист.',
+    'Пищеварение и обмен веществ': 'ЖКТ',
+    'Противомикробные': 'Антибиотики',
+    'Прочие препараты': 'Прочие',
+    'Сердце и кровь': 'Сердце и кровь',
+  };
+
+  mountCharts((init, { C, base, axis }) => {
+    const narrow = window.innerWidth < 560;
+
+    // размер: выручка × чеки, цвет - уровень размера
+    const levels = ['Малые', 'Средние', 'Крупные'];
+    const stores = data.stores as [number, number, number, string, string, number, number, string][];
+    init('chart-size').setOption({
+      ...base,
+      legend: { top: 0, textStyle: { color: C.muted }, itemWidth: 10, itemHeight: 10 },
+      grid: { left: 64, right: 16, top: 40, bottom: 48 },
+      tooltip: {
+        ...base.tooltip,
+        formatter: (p: any) =>
+          `<b>${p.data[7]}</b><br/>Выручка: ${int(p.data[0] / 1000)} тыс. ₽<br/>Чеков: ${int(p.data[1])}<br/>Площадь: ${p.data[2]} м²`,
+      },
+      xAxis: { ...axis, type: 'value', min: 0, name: 'выручка за 4 недели, млн ₽', nameLocation: 'middle', nameGap: 30,
+        axisLabel: { color: C.muted, formatter: (x: number) => String(x / 1e6).replace('.', ',') } },
+      yAxis: { ...axis, type: 'value', min: 0, name: 'чеков', nameLocation: 'middle', nameGap: 44,
+        axisLabel: { color: C.muted, formatter: (x: number) => int(x) } },
+      series: levels.map((lv, i) => ({
+        name: lv,
+        type: 'scatter',
+        symbolSize: 8,
+        data: stores.filter((s) => s[7].startsWith(lv)),
+        itemStyle: { color: C.series[[0, 2, 1][i]], opacity: 0.85, borderColor: C.surface, borderWidth: 1 },
+      })),
+    });
+
+    // цена: профиль ценовых кластеров
+    const pc = data.price_clusters;
+    const tiers = [
+      { key: 'low', name: 'low - дешёвый', color: C.series[0] },
+      { key: 'medium', name: 'medium', color: C.series[5] },
+      { key: 'high', name: 'high - дорогой', color: C.series[1] },
+    ];
+    init('chart-price').setOption({
+      ...base,
+      legend: { top: 0, textStyle: { color: C.muted }, itemWidth: 10, itemHeight: 10 },
+      grid: { left: narrow ? 110 : 150, right: 16, top: 36, bottom: 28 },
+      tooltip: { ...base.tooltip, trigger: 'axis', axisPointer: { type: 'shadow' },
+        valueFormatter: (x: number) => pct(x) },
+      xAxis: { ...axis, type: 'value', max: 1, axisLabel: { color: C.muted, formatter: (x: number) => pct(x) } },
+      yAxis: { ...axis, type: 'category', inverse: true, splitLine: { show: false },
+        data: pc.map((p) => `${p.cluster} · ${p.level} (${p.n})`) },
+      series: tiers.map((t) => ({
+        name: t.name, type: 'bar', stack: 'p', barWidth: '60%',
+        data: pc.map((p) => (p as any)[t.key]),
+        itemStyle: { color: t.color },
+        label: { show: true, color: '#fff', formatter: (p: any) => (p.value >= 0.08 ? pct(p.value) : '') },
+      })),
+    });
+
+    // ассортимент: тепловая карта индексов
+    const A = data.assort;
+    const cells: [number, number, number][] = [];
+    A.index.forEach((row, y) => row.forEach((v, x) => cells.push([x, y, v as number])));
+    init('chart-assort').setOption({
+      ...base,
+      grid: { left: narrow ? 64 : 250, right: 8, top: 8, bottom: narrow ? 100 : 84 },
+      tooltip: { ...base.tooltip, formatter: (p: any) =>
+        `<b>${A.clusters[p.data[1]]} · ${A.profiles[p.data[1]]}</b><br/>${A.categories[p.data[0]]}: ${String(p.data[2]).replace('.', ',')}` },
+      xAxis: { ...axis, type: 'category', data: A.categories.map((c) => SHORT[c] ?? c), splitLine: { show: false },
+        axisLabel: { color: C.muted, rotate: 45, interval: 0, fontSize: narrow ? 10 : 12 } },
+      yAxis: { ...axis, type: 'category', inverse: true, splitLine: { show: false },
+        data: A.clusters.map((c, i) => (narrow ? `${c} (${A.n[i]})` : `${c} (${A.n[i]}) · ${A.profiles[i]}`)),
+        axisLabel: { color: C.text, width: 240, overflow: 'truncate', fontSize: narrow ? 10 : 12 } },
+      visualMap: { show: false, min: 0.3, max: 2.2, inRange: { color: [C.low, C.surface2, C.high] } },
+      series: [{
+        type: 'heatmap', data: cells,
+        label: { show: !narrow, color: C.text, fontSize: 11, formatter: (p: any) => Number(p.value[2]).toFixed(1).replace('.', ',') },
+        itemStyle: { borderColor: C.surface, borderWidth: 2 },
+      }],
+    });
+
+    // проверка: сегменты × архетипы
+    const R = data.archetypes;
+    const ac: [number, number, number][] = [];
+    R.counts.forEach((row, y) => row.forEach((v, x) => v > 0 && ac.push([x, y, v])));
+    init('chart-arch').setOption({
+      ...base,
+      grid: { left: narrow ? 150 : 270, right: 12, top: 8, bottom: narrow ? 104 : 90 },
+      tooltip: { ...base.tooltip, formatter: (p: any) => `<b>${R.segments[p.data[1]]}</b><br/>${R.archetypes[p.data[0]]}: ${p.data[2]}` },
+      xAxis: { ...axis, type: 'category', data: R.archetypes, splitLine: { show: false },
+        axisLabel: { color: C.muted, rotate: 45, interval: 0, fontSize: narrow ? 10 : 12 } },
+      yAxis: { ...axis, type: 'category', inverse: true, data: R.segments, splitLine: { show: false },
+        axisLabel: { color: C.text, width: narrow ? 140 : 260, overflow: 'truncate', fontSize: narrow ? 10 : 12 } },
+      visualMap: { show: false, min: 0, max: Math.max(...R.counts.flat()), inRange: { color: [C.surface2, C.accent] } },
+      series: [{ type: 'heatmap', data: ac, label: { show: true, color: C.text, fontSize: 11 },
+        itemStyle: { borderColor: C.surface, borderWidth: 2 } }],
+    });
+  });
+</script>

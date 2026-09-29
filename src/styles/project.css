@@ -1,0 +1,138 @@
+/* Общие стили страниц проектов с графиками (кластеризация, матрица, остатки) */
+.project-page {
+  max-width: 52rem;
+}
+
+.project-page .crumbs {
+  margin: 0 0 16px;
+  font-size: 0.9rem;
+}
+
+.project-page .facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 28px 0;
+}
+
+.project-page .facts .card {
+  padding: 14px 16px;
+}
+
+.project-page dt {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.project-page dd {
+  margin: 2px 0 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.project-page .notice {
+  border-left: 3px solid var(--accent);
+  margin: 20px 0;
+  font-size: 0.95rem;
+}
+
+.project-page .notice p {
+  margin: 0;
+}
+
+.project-page .summary ol,
+.project-page .summary ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.project-page li {
+  margin-bottom: 6px;
+}
+
+.project-page .pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.project-page .stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.project-page .stat-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.project-page .stat-value {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.project-page .chart-card {
+  margin: 20px 0;
+  padding: 16px;
+}
+
+.project-page figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+}
+
+.project-page .chart {
+  width: 100%;
+  height: 340px;
+}
+
+.project-page .chart-tall {
+  height: 460px;
+}
+
+.project-page details {
+  margin-top: 8px;
+  font-size: 0.9rem;
+}
+
+.project-page summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.project-page .table-card {
+  margin: 20px 0;
+  overflow-x: auto;
+}
+
+.project-page .note {
+  margin: 12px 0 0;
+  font-size: 0.85rem;
+}
+
+.project-page .nowrap {
+  white-space: nowrap;
+}
+
+.project-page .actions {
+  margin-top: 32px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+@media (max-width: 420px) {
+  .project-page .facts .card {
+    padding: 12px;
+  }
+
+  .project-page dd {
+    font-size: 1.05rem;
+  }
+}

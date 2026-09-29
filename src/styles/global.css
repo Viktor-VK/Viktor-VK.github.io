@@ -20,6 +20,15 @@
   --series-tesera: #2a9cc0;
   --series-bgg: #c47a22;
   --series-both: #8a66da;
+  --series-4: #3f9e62;
+  --series-5: #d0546b;
+  --series-6: #8d97a3;
+  /* шкалы тепловых карт: плохо - средне - хорошо и ниже - выше среднего */
+  --scale-bad: #d0503a;
+  --scale-mid: #e9bd4c;
+  --scale-good: #3f9e62;
+  --scale-low: #2f7fc1;
+  --scale-high: #d0503a;
 
   --radius: 12px;
   --maxw: 1040px;

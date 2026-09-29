@@ -1,0 +1,196 @@
+---
+import Base from '../../layouts/Base.astro';
+import data from '../../data/stock-history.json';
+import '../../styles/project.css';
+
+const codeUrl = 'https://github.com/Viktor-VK/portfolio/tree/master/' + encodeURIComponent('Восстановление истории остатков');
+const { meta, sku, lost } = data;
+
+const num = (x: number, d = 1) => x.toFixed(d).replace('.', ',');
+const int = (x: number) => Math.round(x).toLocaleString('ru-RU');
+const pct = (x: number, d = 0) => num(x * 100, d) + '%';
+const newWorst = sku.filter((s) => s.status === 'Новинка').length;
+const lostTop = lost[0];
+---
+
+<Base
+  title="Восстановление истории остатков"
+  description="Ежедневная история остатков по филиалам из текущего остатка и журнала движений 1С: проверка точности, наличие товара и упущенные продажи."
+>
+  <article class="project-page">
+    <p class="muted crumbs"><a href="/#projects">Проекты</a> / восстановление истории остатков</p>
+    <span class="eyebrow">Проект · Python, SQL, DuckDB, 1С</span>
+    <h1>Восстановление истории остатков по филиалам</h1>
+    <p class="lead">
+      Учётная система хранит текущий остаток и журнал движений, но не хранит снимок остатков на каждый день. Поэтому трудно ответить, был ли товар на полке конкретного магазина три недели назад, и отличить «не было спроса» от «не было товара». Расчёт восстанавливает полную историю «день × товар × филиал» и на ней считает наличие и упущенные продажи.
+    </p>
+
+    <div class="card notice">
+      <p>
+        <strong>Данные синтетические.</strong> Таблицы повторяют структуру выгрузок 1С (номенклатура, филиалы, виды цен, счёт 41, счёт 90, текущий остаток), а движения получены симуляцией сети магазинов электроники: спрос, заказы у РРЦ со сроком доставки, перебои у поставщика и выход iPhone 17 в конце сентября 2025. Названия моделей реальные, цены и объёмы условные.
+      </p>
+    </div>
+
+    <dl class="facts">
+      <div class="card"><dt>Период</dt><dd class="nowrap">{new Date(meta.period_from).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })} - {new Date(meta.period_to).toLocaleDateString('ru-RU')}</dd></div>
+      <div class="card"><dt>Филиалов</dt><dd>{meta.branches}</dd></div>
+      <div class="card"><dt>Моделей</dt><dd>{meta.skus}</dd></div>
+      <div class="card"><dt>Строк истории</dt><dd>{num(meta.rows / 1000, 0)} тыс.</dd></div>
+    </dl>
+
+    <h2>1. Как восстанавливается история</h2>
+    <p>
+      Остаток на последний день известен точно. Двигаясь назад по датам, из него вычитается чистое движение за день: приходы минус продажи, перемещения и списания. Так получается остаток на начало каждого более раннего дня. Для СУБД это два лёгких запроса (текущий остаток и журнал движений) вместо тяжёлого запроса к истории остатков. В pandas это одна накопительная сумма в обратном порядке дат по полной сетке «день × филиал × товар».
+    </p>
+    <p>
+      На синтетике есть то, чего нет на реальных данных: истинный остаток на каждый день из симуляции. Сверка по всем строкам:
+    </p>
+    <div class="pair">
+      <div class="card stat"><span class="stat-label">Совпадает с истинным остатком</span><span class="stat-value">{pct(meta.match_share)}</span><span class="muted">строк: {int(meta.rows)}</span></div>
+      <div class="card stat"><span class="stat-label">Максимальное расхождение</span><span class="stat-value">{meta.max_abs_diff} шт.</span><span class="muted">движений в журнале: {int(meta.moves)}</span></div>
+    </div>
+    <p class="muted">
+      Попутно исправлена ошибка первой версии: последний фильтр выбрасывал строки с нулевым остатком, то есть как раз дни, когда товара не было на полке.
+    </p>
+
+    <h2>2. Наличие по филиалам и дням</h2>
+    <p>
+      День дефицита - на начало дня товара на филиале нет, и за день он не продавался. В среднем по сети в наличии {pct(meta.availability)} «товаро-дней». Провалы складываются из трёх историй: перебои у поставщика по отдельным моделям, старт продаж новой линейки, когда ажиотажный спрос опережает поставки, и распродажа выводимых моделей.
+    </p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Доля моделей в наличии: филиал × день</strong>
+        <span class="muted">Магазины и дисконт-центры, сверху - с худшим наличием. Учитываются модели, которые в этот день продавались в сети.</span>
+      </figcaption>
+      <div id="chart-avail" class="chart chart-tall" role="img" aria-label="Тепловая карта наличия по филиалам и дням"></div>
+    </figure>
+
+    <h2>3. Выход новой линейки</h2>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Остатки и продажи в магазинах по линейкам</strong>
+        <span class="muted">Продажи - скользящее среднее за 7 дней. iPhone 17 включает iPhone Air, iPhone 16 - модель 16e.</span>
+      </figcaption>
+      <div id="chart-lines" class="chart chart-tall" role="img" aria-label="Графики остатков и продаж по линейкам iPhone"></div>
+    </figure>
+    <p>
+      Верх списка худшего наличия - выводимые iPhone 15: их больше не дозаказывают, и дефицит здесь плановый. Для управленческого отчёта такие модели стоит показывать отдельно, иначе они заслоняют настоящие проблемы - новинки, которых не хватило на старте.
+    </p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Модели с худшим наличием</strong>
+        <span class="muted">Доля «магазино-дней» без товара{newWorst > 0 ? `; ${newWorst} из ${sku.length} - новинки` : ''}.</span>
+      </figcaption>
+      <div id="chart-sku" class="chart" role="img" aria-label="Столбчатая диаграмма моделей с худшим наличием"></div>
+    </figure>
+
+    <h2>4. Упущенные продажи</h2>
+    <p>
+      Оценка простая: ожидаемые продажи пары «товар-филиал» в день - это средние продажи в дни, когда товар был в наличии; они умножаются на дни дефицита и на цену. Метод не учитывает сезонность и переход покупателя на соседнюю модель, но уже отделяет «не было спроса» от «не было товара». На синтетике оценку можно сверить с истинным неудовлетворённым спросом.
+    </p>
+    <div class="pair">
+      <div class="card stat"><span class="stat-label">Оценка упущенных продаж</span><span class="stat-value">{num(meta.lost_est / 1e6, 0)} млн ₽</span><span class="muted">{pct(meta.lost_est / meta.sales, 1)} от продаж за период</span></div>
+      <div class="card stat"><span class="stat-label">Истинные, по симуляции</span><span class="stat-value">{num(meta.lost_true / 1e6, 0)} млн ₽</span><span class="muted">оценка выше на {pct(meta.lost_est / meta.lost_true - 1)}</span></div>
+    </div>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Упущенные продажи по филиалам: оценка и истинное значение</strong>
+        <span class="muted">Больше всего теряет {lostTop.branch}: {num(lostTop.est / 1e6)} млн ₽ по оценке.</span>
+      </figcaption>
+      <div id="chart-lost" class="chart chart-tall" role="img" aria-label="Столбчатая диаграмма упущенных продаж по филиалам"></div>
+    </figure>
+    <p>
+      Оценка завышена: средние продажи в дни наличия включают дни ажиотажа, а в отдельных филиалах расхождение заметное. Порядок филиалов она передаёт в целом правильно (ранговая корреляция с истинными значениями {num(meta.lost_rank_corr, 2)}), а для решений по логистике и распределению товара важен именно он. Следующий шаг - учесть день недели и стадию жизненного цикла модели.
+    </p>
+
+    <p class="actions">
+      <a class="btn primary" href={codeUrl}>Ноутбук на GitHub</a>
+    </p>
+  </article>
+</Base>
+
+<script>
+  import data from '../../data/stock-history.json';
+  import { mountCharts, int, pct } from '../../scripts/charts';
+
+  mountCharts((init, { C, base, axis }) => {
+    const narrow = window.innerWidth < 560;
+    const dm = (s: string) => s.slice(8, 10) + '.' + s.slice(5, 7);
+
+    // наличие
+    const A = data.availability;
+    const cells: [number, number, number][] = [];
+    A.share.forEach((row, y) => row.forEach((v, x) => v !== null && cells.push([x, y, v as number])));
+    init('chart-avail').setOption({
+      ...base,
+      grid: { left: narrow ? 8 : 190, right: 12, top: 8, bottom: 56 },
+      tooltip: { ...base.tooltip, formatter: (p: any) => `<b>${A.branches[p.data[1]]}</b><br/>${dm(A.dates[p.data[0]])}: в наличии ${pct(p.data[2])} моделей` },
+      xAxis: { ...axis, type: 'category', data: A.dates.map(dm), splitLine: { show: false },
+        axisLabel: { color: C.muted, interval: 13 } },
+      yAxis: { ...axis, type: 'category', inverse: true, data: A.branches, splitLine: { show: false },
+        axisLabel: { show: !narrow, color: C.muted, fontSize: 10, width: 180, overflow: 'truncate' } },
+      visualMap: { type: 'continuous', min: 0.5, max: 1, calculable: false, orient: 'horizontal', left: 'center', bottom: 0,
+        itemHeight: 140, itemWidth: 10, text: ['100%', '50%'], textStyle: { color: C.muted },
+        inRange: { color: [C.bad, C.mid, C.good] } },
+      series: [{ type: 'heatmap', data: cells, progressive: 0 }],
+    });
+
+    // линейки: две сетки - остатки и продажи
+    const L = data.lines as Record<string, { dates: string[]; stock: number[]; sales: number[] }>;
+    const names = Object.keys(L).sort();
+    const color: Record<string, string> = { 'iPhone 15': C.series[5], 'iPhone 16': C.series[0], 'iPhone 17': C.series[1] };
+    const roll = (a: number[]) => a.map((_, i) => { const w = a.slice(Math.max(0, i - 6), i + 1); return Math.round(w.reduce((s, x) => s + x, 0) / w.length); });
+    const dates = L[names[0]].dates;
+    init('chart-lines').setOption({
+      ...base,
+      legend: { top: 0, textStyle: { color: C.muted }, itemWidth: 12, itemHeight: 4 },
+      tooltip: { ...base.tooltip, trigger: 'axis', valueFormatter: (x: number) => int(x) + ' шт.' },
+      axisPointer: { link: [{ xAxisIndex: 'all' }] },
+      grid: [{ left: 56, right: 16, top: narrow ? 64 : 40, height: '32%' }, { left: 56, right: 16, top: '60%', bottom: 32 }],
+      xAxis: [0, 1].map((i) => ({ ...axis, type: 'category', gridIndex: i, data: dates.map(dm), boundaryGap: false,
+        splitLine: { show: false }, axisLabel: { color: C.muted, show: i === 1, interval: 13 } })),
+      yAxis: [
+        { ...axis, type: 'value', gridIndex: 0, name: 'остаток, шт.', nameTextStyle: { color: C.muted, align: 'left' },
+          axisLabel: { color: C.muted, formatter: (x: number) => int(x) } },
+        { ...axis, type: 'value', gridIndex: 1, name: 'продажи в день, шт.', nameTextStyle: { color: C.muted, align: 'left' },
+          axisLabel: { color: C.muted, formatter: (x: number) => int(x) } },
+      ],
+      series: names.flatMap((n) => [
+        { name: n, type: 'line', xAxisIndex: 0, yAxisIndex: 0, showSymbol: false, data: L[n].stock, lineStyle: { color: color[n], width: 2 }, itemStyle: { color: color[n] } },
+        { name: n, type: 'line', xAxisIndex: 1, yAxisIndex: 1, showSymbol: false, data: roll(L[n].sales), lineStyle: { color: color[n], width: 2 }, itemStyle: { color: color[n] } },
+      ]),
+    });
+
+    // худшие модели
+    const S = data.sku;
+    const stColor: Record<string, string> = { 'Новинка': C.series[1], 'Основной': C.series[0], 'Выводимый': C.series[5] };
+    init('chart-sku').setOption({
+      ...base,
+      grid: { left: narrow ? 150 : 230, right: 48, top: 8, bottom: 24 },
+      tooltip: { ...base.tooltip, trigger: 'axis', axisPointer: { type: 'shadow' },
+        formatter: (ps: any) => `<b>${S[ps[0].dataIndex].sku}</b><br/>${S[ps[0].dataIndex].status}<br/>без товара: ${pct(ps[0].value)}` },
+      xAxis: { ...axis, type: 'value', axisLabel: { color: C.muted, formatter: (x: number) => pct(x) } },
+      yAxis: { ...axis, type: 'category', inverse: true, data: S.map((s) => s.sku), splitLine: { show: false },
+        axisLabel: { color: C.text, fontSize: narrow ? 10 : 12, width: narrow ? 140 : 220, overflow: 'truncate' } },
+      series: [{ type: 'bar', barMaxWidth: 16, data: S.map((s) => ({ value: s.deficit, itemStyle: { color: stColor[s.status], borderRadius: [0, 4, 4, 0] } })),
+        label: { show: true, position: 'right', color: C.muted, formatter: (p: any) => pct(p.value) } }],
+    });
+
+    // упущенные продажи
+    const top = data.lost.slice(0, 15);
+    init('chart-lost').setOption({
+      ...base,
+      legend: { top: 0, textStyle: { color: C.muted }, itemWidth: 10, itemHeight: 10 },
+      grid: { left: narrow ? 150 : 210, right: 16, top: 36, bottom: 24 },
+      tooltip: { ...base.tooltip, trigger: 'axis', axisPointer: { type: 'shadow' },
+        valueFormatter: (x: number) => (x / 1e6).toFixed(1).replace('.', ',') + ' млн ₽' },
+      xAxis: { ...axis, type: 'value', axisLabel: { color: C.muted, formatter: (x: number) => x / 1e6 + ' млн' } },
+      yAxis: { ...axis, type: 'category', inverse: true, data: top.map((x) => x.branch), splitLine: { show: false },
+        axisLabel: { color: C.text, fontSize: narrow ? 10 : 12, width: narrow ? 140 : 200, overflow: 'truncate' } },
+      series: [
+        { name: 'оценка', type: 'bar', data: top.map((x) => x.est), itemStyle: { color: C.series[1] } },
+        { name: 'истинное значение', type: 'bar', data: top.map((x) => x.true), itemStyle: { color: C.series[5] } },
+      ],
+    });
+  });
+</script>
