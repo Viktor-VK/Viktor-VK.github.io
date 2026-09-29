@@ -101,8 +101,8 @@ const kLabel: Record<string, string> = { 'Площадь': 'Площадь', 'В
     </p>
     <figure class="card chart-card">
       <figcaption>
-        <strong>Средний ценовой профиль кластеров</strong>
-        <span class="muted">Доля выручки в дешёвом, среднем и дорогом товаре своей подкатегории.</span>
+        <strong>Ценовые группы аптек</strong>
+        <span class="muted">Каждая строка - группа аптек (ценовой кластер), а не товаров: аптеки в ней похожи тем, какую долю выручки делают на дешёвом, среднем и дорогом товаре своей подкатегории. Группы идут от самой экономичной к самой премиальной.</span>
       </figcaption>
       <div id="chart-price" class="chart" role="img" aria-label="Столбчатая диаграмма ценовых профилей кластеров"></div>
     </figure>
@@ -282,6 +282,17 @@ const kLabel: Record<string, string> = { 'Площадь': 'Площадь', 'В
 
     // цена: профиль ценовых кластеров
     const pc = data.price_clusters;
+    // подписи групп: уровень и число аптек; если медиум-групп несколько, уточняем, к какому краю ближе
+    const plural = (n: number) =>
+      n % 10 === 1 && n % 100 !== 11 ? 'аптека' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'аптеки' : 'аптек';
+    const mids = pc.map((p, i) => (p.level === 'медиум' ? i : -1)).filter((i) => i >= 0);
+    const priceLabel = (level: string, i: number, n: number) => {
+      let name = level[0].toUpperCase() + level.slice(1);
+      if (level === 'медиум' && mids.length > 1) {
+        name += i === mids[0] ? ', ближе к эконому' : i === mids[mids.length - 1] ? ', ближе к премиуму' : '';
+      }
+      return `${name} · ${n} ${plural(n)}`;
+    };
     const tiers = [
       { key: 'low', name: 'low - дешёвый', color: C.series[0] },
       { key: 'medium', name: 'medium', color: C.series[5] },
@@ -290,12 +301,12 @@ const kLabel: Record<string, string> = { 'Площадь': 'Площадь', 'В
     init('chart-price').setOption({
       ...base,
       legend: { top: 0, textStyle: { color: C.muted }, itemWidth: 10, itemHeight: 10 },
-      grid: { left: narrow ? 110 : 150, right: 16, top: 36, bottom: 28 },
+      grid: { left: narrow ? 150 : 240, right: 16, top: 36, bottom: 28 },
       tooltip: { ...base.tooltip, trigger: 'axis', axisPointer: { type: 'shadow' },
         valueFormatter: (x: number) => pct(x) },
       xAxis: { ...axis, type: 'value', max: 1, axisLabel: { color: C.muted, formatter: (x: number) => pct(x) } },
       yAxis: { ...axis, type: 'category', inverse: true, splitLine: { show: false },
-        data: pc.map((p) => `${p.cluster} · ${p.level} (${p.n})`) },
+        data: pc.map((p, i) => priceLabel(p.level, i, p.n)) },
       series: tiers.map((t) => ({
         name: t.name, type: 'bar', stack: 'p', barWidth: '60%',
         data: pc.map((p) => (p as any)[t.key]),
