@@ -6,6 +6,7 @@ import '../../styles/project.css';
 const codeUrl = 'https://github.com/Viktor-VK/portfolio/tree/master/' + encodeURIComponent('Кластеризация точек продаж');
 const synthUrl = 'https://github.com/Viktor-VK/portfolio/tree/master/synthetic_data';
 const { meta, quality, segments } = data;
+const ex = data.example;
 
 const num = (x: number, d = 2) => x.toFixed(d).replace('.', ',');
 const int = (x: number) => Math.round(x).toLocaleString('ru-RU');
@@ -132,6 +133,41 @@ const kLabel: Record<string, string> = { 'Площадь': 'Площадь', 'В
       <li><strong>Ассортимент - в уклон.</strong> Категории с индексом от 1,3 (не больше двух) дают название уклона, если таких нет - «универсальный».</li>
       <li><strong>Склейка.</strong> Сегмент - сочетание трёх названий, например «Средние эконом · сердце и кровь». Из {data.segments_raw} встретившихся сочетаний часть содержит всего 1-4 аптеки: такое сочетание вливается в ближайший крупный сегмент - тот, на который его аптеки больше всего похожи по деньгам, цене и ассортименту вместе. Остаётся {segments.length} сегментов.</li>
     </ol>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Схема сборки сегмента</strong>
+        <span class="muted">В скобках - число аптек в кластере. Выделен путь аптеки {ex.code}.</span>
+      </figcaption>
+      <div class="scheme">
+        <div class="scheme-col">
+          <div class="scheme-head"><strong>Размер</strong><span>кластеры по выручке и чекам</span></div>
+          {data.size_clusters.map((c) => (
+            <div class={c.cluster === ex.size_cluster ? 'scheme-item hit' : 'scheme-item'}><span>{c.cluster} ({c.n})</span><span>→ {c.level}</span></div>
+          ))}
+          <div class="scheme-rule">по средней выручке: крайние - «малые» и «крупные»</div>
+        </div>
+        <div class="scheme-col">
+          <div class="scheme-head"><strong>Цена</strong><span>кластеры по долям дешёвого и дорогого</span></div>
+          {data.price_clusters.map((c) => (
+            <div class={c.cluster === ex.price_cluster ? 'scheme-item hit' : 'scheme-item'}><span>{c.cluster} ({c.n})</span><span>→ {c.level}</span></div>
+          ))}
+          <div class="scheme-rule">по индексу «high - low»: крайние - «эконом» и «премиум»</div>
+        </div>
+        <div class="scheme-col">
+          <div class="scheme-head"><strong>Ассортимент</strong><span>кластеры по долям категорий</span></div>
+          {data.assort.clusters.map((c, i) => (
+            <div class={c === ex.assort_cluster ? 'scheme-item hit' : 'scheme-item'}><span>{c} ({data.assort.n[i]})</span><span>→ {data.assort.profiles[i]}</span></div>
+          ))}
+          <div class="scheme-rule">категории с индексом от 1,3, не больше двух</div>
+        </div>
+      </div>
+      <div class="scheme-arrow" aria-hidden="true">↓</div>
+      <div class="scheme-result">
+        <strong>Сегмент = размер + цена + уклон</strong>
+        <span>{ex.code}: {ex.size_cluster} + {ex.price_cluster} + {ex.assort_cluster} = «{ex.segment}»</span>
+        <span class="muted">Сочетания меньше 5 аптек вливаются в ближайший по профилю сегмент.</span>
+      </div>
+    </figure>
     <div class="card table-card">
       <table class="data">
         <thead>

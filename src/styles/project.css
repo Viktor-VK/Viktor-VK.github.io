@@ -167,3 +167,96 @@
   border-color: var(--accent);
   color: var(--text);
 }
+
+/* схема сборки сегмента: три колонки кластеров -> итоговый сегмент */
+.project-page .scheme {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.project-page .scheme-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.project-page .scheme-head {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 0.85rem;
+}
+
+.project-page .scheme-head span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.project-page .scheme-item {
+  display: flex;
+  flex-direction: column;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.project-page .scheme-item span:first-child {
+  color: var(--muted);
+}
+
+.project-page .scheme-item.hit {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.project-page .scheme-item.hit span:first-child {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.project-page .scheme-rule {
+  margin-top: auto;
+  padding-top: 4px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-style: italic;
+}
+
+.project-page .scheme-arrow {
+  text-align: center;
+  color: var(--muted);
+  font-size: 1.4rem;
+  line-height: 1;
+  margin: 10px 0 6px;
+}
+
+.project-page .scheme-result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent-soft);
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.project-page .scheme-result .muted {
+  font-size: 0.8rem;
+}
+
+@media (max-width: 560px) {
+  .project-page .scheme {
+    grid-template-columns: 1fr;
+  }
+
+  .project-page .scheme-rule {
+    margin-top: 0;
+  }
+}
