@@ -4,18 +4,27 @@ import data from '../../data/assortment-matrix.json';
 import '../../styles/project.css';
 
 const codeUrl = 'https://github.com/Viktor-VK/portfolio/tree/master/' + encodeURIComponent('Скоринг и выбор ассортиментной матрицы');
-const { meta, variants, width } = data;
+const { meta, variants, params: P, experiment } = data;
 
 const num = (x: number, d = 1) => x.toFixed(d).replace('.', ',');
 const int = (x: number) => Math.round(x).toLocaleString('ru-RU');
 const sign = (x: number) => (x > 0 ? '+' : x < 0 ? '-' : '');
 const mlnS = (x: number) => sign(x) + num(Math.abs(x) / 1e6) + ' млн ₽';
+const mlnAbs = (x: number) => num(Math.abs(x) / 1e6) + ' млн ₽';
 const pctS = (x: number, base: number) => sign(x) + num(Math.abs(x / base) * 100) + '%';
 
 const fact = variants.find((v) => v.variant === 'факт')!;
 const best = variants.find((v) => v.selected)!;
-const soft = variants.find((v) => v.variant === 'мягкий')!;
-const strict = variants.find((v) => v.variant === 'строгий')!;
+const cands = variants.filter((v) => v.variant !== 'факт');
+const richest = [...cands].sort((a, b) => b.d_profit - a.d_profit)[0];
+const leanest = [...cands].sort((a, b) => a.d_stock - b.d_stock)[0];
+const E = Object.fromEntries(experiment.map((e) => [e.method, e]));
+const auto = E['Автосегменты'];
+const arch = E['Архетипы'];
+const one = E['Одна матрица на сеть'];
+const cat = E['Категории A-E'];
+const rnd = E['Случайные группы'];
+const optimism = auto.d_profit_train !== 0 ? 1 - auto.d_profit_test / auto.d_profit_train : 0;
 ---
 
 <Base
@@ -39,15 +48,23 @@ const strict = variants.find((v) => v.variant === 'строгий')!;
     <dl class="facts">
       <div class="card"><dt>Сегментов точек</dt><dd>{meta.segments}</dd></div>
       <div class="card"><dt>Юнитов</dt><dd>{meta.units}</dd></div>
-      <div class="card"><dt>Позиций в действующих матрицах</dt><dd>{int(meta.matrix_fact)}</dd></div>
-      <div class="card"><dt>Выбранный вариант</dt><dd>{best.variant}</dd></div>
+      <div class="card"><dt>Позиций на аптеку сейчас</dt><dd>{int(meta.matrix_fact)}</dd></div>
+      <div class="card"><dt>Выбранный вариант</dt><dd>{best.variant.replace('экспоненциальный', 'эксп.')}</dd></div>
     </dl>
 
     <section class="card summary">
       <span class="eyebrow">Результат</span>
-      <p>
-        Вариант «{best.variant}» сокращает матрицы на {int(-best.d_positions)} позиций и освобождает {mlnS(-best.d_stock).replace('+', '')} в остатках ({pctS(best.d_stock, fact.stock)}), при этом выручка {best.d_revenue >= 0 ? 'растёт' : 'меняется'} на {pctS(best.d_revenue, fact.revenue)}, прибыль - на {pctS(best.d_profit, fact.profit)}. Рост достигается за счёт того, что в матрицу возвращаются продаваемые товары, которых в действующей не было, а залежавшиеся уходят.
-      </p>
+      <ul>
+        <li>
+          Новая матрица сокращает ассортимент аптеки с {int(fact.positions)} до {int(best.positions)} позиций и освобождает {mlnAbs(best.d_stock)} в остатках ({pctS(best.d_stock, fact.stock)} от норматива действующих матриц).
+        </li>
+        <li>
+          На неделях, по которым она строилась, прибыль растёт на {mlnS(auto.d_profit_train)}. На следующих четырёх неделях, которых расчёт не видел, - на {mlnS(auto.d_profit_test)}: выигрыш сохраняется, хотя первая оценка была на {Math.round(optimism * 100)}% оптимистичнее.
+        </li>
+        <li>
+          Автосегменты дают столько же, сколько «идеальное знание» скрытой структуры данных ({mlnS(arch.d_profit_test)}), а одна матрица на всю сеть, текущие категории A-E и случайные группы - меньше нуля.
+        </li>
+      </ul>
     </section>
 
     <h2>1. Score товара и юниты</h2>
@@ -75,18 +92,21 @@ const strict = variants.find((v) => v.variant === 'строгий')!;
       Кандидаты строятся двумя методами. <strong>ABC-пороги</strong>: у каждого класса юнита свой минимум доли товара в Score юнита (мягкий, средний и строгий наборы порогов). <strong>Экспоненциальный порог</strong>: порог плавно зависит от веса юнита в сегменте, строгость задаёт параметр λ. Все защищённые позиции - минимальный ассортимент и собственная марка - входят в матрицу при любом Score.
     </p>
     <p>
-      Каждый кандидат сравнивается с действующей матрицей по деньгам: остатки, выручка, прибыль. Если товар исключён, половина его продаж переходит на аналоги из того же юнита, иначе любое сокращение выглядело бы прямой потерей.
+      Каждый кандидат сравнивается с действующей матрицей по деньгам, отдельно для каждой аптеки: у аптеки своя матрица (её сегмента) и свои продажи. <strong>Выручка и прибыль</strong> - продажи товаров матрицы; если товар исключён, половина его продаж переходит на аналог из того же юнита, иначе любое сокращение выглядело бы прямой потерей.
+    </p>
+    <p>
+      <strong>Остатки</strong> считаются по нормативу запаса для каждой пары «аптека × товар матрицы»: средний запас = страховой запас + половина недельной поставки, но не меньше выкладки в {P.display_units} пачки. Страховой запас рассчитан на уровень сервиса 95% при сроке поставки {P.lead_days} дня и заказе раз в {P.review_days} дней. Так редкий товар замораживает минимум выкладки в каждой аптеке, а ходовой - запас под свой спрос, и видно, сколько денег экономит или требует каждый вариант.
     </p>
     <figure class="card chart-card">
       <figcaption>
         <strong>Изменение остатков и прибыли относительно действующей матрицы</strong>
-        <span class="muted">Точка - вариант матрицы. Интересен левый верхний угол: меньше денег в остатках, больше прибыли.</span>
+        <span class="muted">Недели обучения. Точка - вариант матрицы. Интересен левый верхний угол: меньше денег в остатках, больше прибыли.</span>
       </figcaption>
       <div id="chart-variants" class="chart chart-tall" role="img" aria-label="Диаграмма вариантов матрицы: изменение остатков и прибыли"></div>
       <details>
         <summary>Все варианты</summary>
         <table class="data">
-          <thead><tr><th>Вариант</th><th class="num">Позиций</th><th class="num">Δ остатки</th><th class="num">Δ выручка</th><th class="num">Δ прибыль</th></tr></thead>
+          <thead><tr><th>Вариант</th><th class="num">Позиций на аптеку</th><th class="num">Δ остатки</th><th class="num">Δ выручка</th><th class="num">Δ прибыль</th></tr></thead>
           <tbody>
             {variants.filter((v) => v.variant !== 'факт').map((v) => (
               <tr>
@@ -102,23 +122,69 @@ const strict = variants.find((v) => v.variant === 'строгий')!;
       </details>
     </figure>
     <p>
-      Видна цена выбора. «Мягкий» вариант даёт больше всего прибыли ({mlnS(soft.d_profit)}), но требует {mlnS(soft.d_stock)} остатков. «Строгий» освобождает {mlnS(-strict.d_stock).replace('+', '')}, но теряет {mlnS(strict.d_profit).replace('-', '')} прибыли. В рабочей версии вариант выбирали вручную по такому графику. Здесь правило формализовано: из вариантов, которые не увеличивают остатки, берётся вариант с максимальной прибылью. Им стал «{best.variant}».
+      Видна цена выбора. Больше всего прибыли даёт вариант «{richest.variant}» ({mlnS(richest.d_profit)} при {mlnS(richest.d_stock)} остатков). Самый строгий, «{leanest.variant}», освобождает {mlnAbs(leanest.d_stock)}, но {leanest.d_profit < 0 ? `теряет ${mlnAbs(leanest.d_profit)} прибыли` : `даёт лишь ${mlnS(leanest.d_profit)} прибыли`}: вместе с залежавшимся товаром уходит и продаваемый. В рабочей версии вариант выбирали вручную по такому графику. Здесь правило формализовано: из вариантов, которые не увеличивают остатки, берётся вариант с максимальной прибылью. Им стал «{best.variant}».
     </p>
 
     <h2>4. Матрица по сегментам</h2>
     <figure class="card chart-card">
       <figcaption>
         <strong>Ширина матрицы: действующая и выбранная</strong>
-        <span class="muted">Позиций в матрице сегмента, сегменты по числу точек.</span>
+        <span class="muted">Позиций на аптеку сегмента, сегменты по числу аптек.</span>
       </figcaption>
       <div id="chart-width" class="chart chart-tall" role="img" aria-label="Столбчатая диаграмма ширины матриц по сегментам"></div>
     </figure>
+
+    <h2>5. Проверка на отложенных неделях</h2>
+    <p>
+      Выбор варианта сделан по тем же неделям, по которым считался Score, и такая оценка оптимистична: матрица подстраивается под случайные всплески продаж. Честнее проверить её на неделях, которых расчёт не видел. Период разделён пополам: по первым {P.train_days / 7} неделям строятся сегменты, Score и матрицы, затем матрицы фиксируются, а по реальным продажам следующих {P.test_days / 7} недель считается, сколько они заработали бы.
+    </p>
+    <p>
+      Заодно сравниваются способы разбить сеть на группы. Процедура везде одна, меняется только то, какую матрицу получает аптека:
+    </p>
+    <ul>
+      <li><strong>одна матрица на всю сеть</strong> - нижняя планка: сегментация должна давать больше;</li>
+      <li><strong>категории A-E</strong> - как сейчас в сети, по площади аптеки;</li>
+      <li><strong>автосегменты</strong> - результат кластеризации;</li>
+      <li><strong>архетипы</strong> - скрытая структура, заложенная в синтетические данные: «идеальное знание», верхняя планка;</li>
+      <li><strong>случайные группы</strong> того же размера, что автосегменты (среднее по {P.n_random} разбиениям) - проверка, что выигрыш даёт смысл групп, а не сам факт деления.</li>
+    </ul>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Изменение прибыли к действующей матрице: на неделях обучения и на отложенных</strong>
+        <span class="muted">Серый - оценка на тех же неделях, по которым строилась матрица, цвет - на следующих неделях.</span>
+      </figcaption>
+      <div id="chart-exp" class="chart" role="img" aria-label="Сравнение способов сегментации по изменению прибыли"></div>
+      <div class="table-card">
+        <table class="data">
+          <thead><tr><th>Способ</th><th class="num">Групп</th><th class="num">Позиций на аптеку</th><th class="num">Δ остатки</th><th class="num">Δ прибыль, проверка</th></tr></thead>
+          <tbody>
+            {experiment.map((e) => (
+              <tr>
+                <td>{e.method === 'Автосегменты' ? <strong>{e.method}</strong> : e.method}</td>
+                <td class="num">{e.groups}</td>
+                <td class="num">{int(e.positions)}</td>
+                <td class="num nowrap">{mlnS(e.d_stock)}</td>
+                <td class="num nowrap">{mlnS(e.d_profit_test)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </figure>
+    <p>
+      Выводы. Автосегменты - единственный способ, кроме архетипов, который даёт прибавку прибыли на неделях, которых расчёт не видел: {mlnS(auto.d_profit_test)} при {mlnAbs(auto.d_stock)} освобождённых остатков. Одна матрица на сеть ({mlnS(one.d_profit_test)}) и текущие категории по площади ({mlnS(cat.d_profit_test)}) не учитывают, чем аптеки отличаются друг от друга. Случайные группы ({mlnS(rnd.d_profit_test)}) хуже даже одной матрицы: дробление сети без смысла только добавляет шум. То, что автосегменты {auto.d_profit_test >= arch.d_profit_test * 0.95 ? 'не уступают архетипам' : 'приближаются к архетипам'}, значит: кластеризация уловила то, что действительно отличает аптеки по спросу.
+    </p>
+    <p class="muted">
+      Ограничение: в синтетических данных спрос стабилен от недели к неделе, поэтому разница между обучением и проверкой - это только случайные колебания. В реальной сети добавятся сезонность и тренды, и матрицы нужно будет пересчитывать регулярно.
+    </p>
 
     <h2>Что изменилось относительно рабочего расчёта</h2>
     <ul>
       <li>Юниты построены из справочника товаров (МНН + лекформа), в рабочей версии был готовый справочник юнитов.</li>
       <li>Добавлено переключение спроса на аналоги внутри юнита при исключении товара.</li>
+      <li>Остатки считаются по нормативу запаса для каждой пары «аптека × товар», деньги - по каждой аптеке отдельно.</li>
       <li>Выбор варианта формализован правилом вместо ручного выбора по графику.</li>
+      <li>Добавлена проверка на отложенных неделях и сравнение способов сегментации - в рабочей версии такой проверки не было.</li>
       <li>В экспоненциальный порог подаётся вес юнита относительно крупнейшего юнита сегмента: при сотнях юнитов абсолютные доли слишком малы.</li>
     </ul>
 
@@ -184,6 +250,25 @@ const strict = variants.find((v) => v.variant === 'строгий')!;
           label: { show: true, position: 'right', color: C.muted, formatter: 'факт' },
           markLine: { silent: true, symbol: 'none', lineStyle: { color: C.muted, type: 'dashed', width: 1 },
             label: { show: false }, data: [{ xAxis: 0 }, { yAxis: 0 }] } },
+      ],
+    });
+
+    // эксперимент: Δ прибыли на неделях обучения и на отложенных
+    const ex = data.experiment;
+    init('chart-exp').setOption({
+      ...base,
+      legend: { top: 0, textStyle: { color: C.muted }, itemWidth: 10, itemHeight: 10 },
+      grid: { left: narrow ? 120 : 170, right: 56, top: 36, bottom: 28 },
+      tooltip: { ...base.tooltip, trigger: 'axis', axisPointer: { type: 'shadow' },
+        valueFormatter: (x: number) => signed(mln(Math.abs(x)), x) + ' млн ₽' },
+      xAxis: { ...axis, type: 'value', axisLabel: { color: C.muted, formatter: (x: number) => signed(mln(Math.abs(x), 0), x) } },
+      yAxis: { ...axis, type: 'category', inverse: true, splitLine: { show: false }, data: ex.map((e) => e.method),
+        axisLabel: { color: C.text, fontSize: narrow ? 10 : 12 } },
+      series: [
+        { name: 'недели обучения', type: 'bar', data: ex.map((e) => e.d_profit_train), itemStyle: { color: C.series[5] }, barGap: '15%' },
+        { name: 'отложенные недели', type: 'bar', data: ex.map((e) => ({ value: e.d_profit_test,
+            itemStyle: { color: e.method === 'Автосегменты' ? C.accent : C.series[0] } })),
+          label: { show: true, position: 'right', color: C.text, formatter: (p: any) => signed(mln(Math.abs(p.value)), p.value) } },
       ],
     });
 
