@@ -35,6 +35,23 @@ const rnd = E['Случайные группы'];
 const arch = E['Архетипы'];
 const methodOrder = ['Автосегменты', 'Архетипы', 'Случайные группы', 'Категории A-E', 'Одна матрица на сеть'];
 const rows = methodOrder.filter((m) => m in E).map((m) => E[m]);
+const halfUnits = (data.pareto as number[][]).find((p) => p[1] >= 0.5)![0];
+
+// по неделям: матрица каждого способа выбрана по неделям обучения и дальше не меняется
+const W = data.weekly as Record<string, { lam: number | null; rows: number[][] }>;
+const trainWeeks = P.train_weeks;
+const factW = W['Действующая матрица'].rows;
+const weekStat = (m: string) => {
+  const r = W[m].rows;
+  const test = r.filter((x) => x[0] > trainWeeks);
+  const dTest = test.reduce((a, x) => a + x[1] - factW[x[0] - 1][1], 0);
+  const factTest = test.reduce((a, x) => a + factW[x[0] - 1][1], 0);
+  return { stock: r.reduce((a, x) => a + x[2], 0) / r.length, dTest, factTest, dTestWeek: dTest / test.length };
+};
+const wAuto = weekStat('Автосегменты');
+const wRnd = weekStat('Случайные группы');
+const wOne = weekStat('Одна матрица на сеть');
+const wFact = weekStat('Действующая матрица');
 const stockVerb = (d: number) => (d <= 0 ? `экономит ${mlnAbs(d)}` : `раздувает остатки на ${mlnAbs(d)}`);
 ---
 
@@ -96,14 +113,14 @@ const stockVerb = (d: number) => (d <= 0 ? `экономит ${mlnAbs(d)}` : `р
       </p>
     </figure>
     <p>
-      Каждый товар получает оценку вклада (Score): выручка на одну аптеку сегмента с поправкой на цену - в эконом-сегменте чуть выше ценится дешёвый товар, в премиальном - дорогой. Юниты делятся на классы по важности (ABC-анализ): юниты, которые вместе дают половину выручки сегмента, - класс A, следующие до 90% - класс B, остальные - C. Чем важнее класс, тем больше товаров юнита остаётся в матрице.
+      Каждый товар получает оценку вклада (Score) - его выручку на одну аптеку сегмента, без поправочных коэффициентов: то, что сегмент покупает, само определяет вес товара. Вес юнита - его доля в выручке сегмента. Чем весомее юнит, тем больше его товаров остаётся в матрице: в важной для сегмента потребности покупателю нужен выбор, в редкой хватит одного-двух ходовых товаров.
     </p>
     <figure class="card chart-card">
       <figcaption>
         <strong>Как распределён вклад юнитов, сегмент «{meta.pareto_segment}»</strong>
-        <span class="muted">Юниты по убыванию вклада, закрашены классы A, B, C.</span>
+        <span class="muted">Юниты по убыванию вклада: половину выручки сегмента дают {num(halfUnits * 100, 0)}% юнитов.</span>
       </figcaption>
-      <div id="chart-pareto" class="chart" role="img" aria-label="Кривая Парето юнитов с классами A, B, C"></div>
+      <div id="chart-pareto" class="chart" role="img" aria-label="Кривая Парето юнитов сегмента"></div>
     </figure>
 
     <h2>2. Строгость отбора и выбор матрицы</h2>
@@ -122,7 +139,7 @@ const stockVerb = (d: number) => (d <= 0 ? `экономит ${mlnAbs(d)}` : `р
     <figure class="card chart-card">
       <figcaption>
         <strong>Варианты матрицы: изменение остатков и прибыли относительно действующей</strong>
-        <span class="muted">Линия - шкала строгости: слева строгие варианты с меньшими остатками, справа мягкие. Отдельные точки - три варианта ABC-порогов для сравнения. Выбран вариант, где линия пересекает ноль прибыли.</span>
+        <span class="muted">Линия - шкала строгости: слева строгие варианты с меньшими остатками, справа мягкие. Выбран вариант, где линия пересекает ноль прибыли.</span>
       </figcaption>
       <div id="chart-variants" class="chart chart-tall" role="img" aria-label="Кривая вариантов матрицы: изменение остатков и прибыли"></div>
       <details>
@@ -149,7 +166,7 @@ const stockVerb = (d: number) => (d <= 0 ? `экономит ${mlnAbs(d)}` : `р
     <details class="card more">
       <summary><strong>Подробнее: как задаётся строгость и считается запас</strong></summary>
       <p>
-        <strong>Строгость.</strong> Товар остаётся в матрице, если его доля в оценке своего юнита выше порога. Порог плавно зависит от веса юнита в сегменте: у весомых юнитов он ниже, и в них остаётся больше товаров. Общую строгость задаёт параметр λ: кривая строится по 10 его значениям, а нулевые точки находятся точно - делением отрезка пополам. Для сравнения показаны три набора ABC-порогов, где у каждого класса юнита свой фиксированный минимум. Товары минимального обязательного ассортимента и собственной торговой марки входят в матрицу всегда.
+        <strong>Строгость.</strong> Товар остаётся в матрице, если его доля в оценке своего юнита выше порога. Порог плавно зависит от веса юнита в сегменте: у весомых юнитов он ниже, и в них остаётся больше товаров. Общую строгость задаёт параметр λ: кривая строится по 10 его значениям, а нулевые точки находятся точно - делением отрезка пополам. Товары минимального обязательного ассортимента и собственной торговой марки входят в матрицу всегда.
       </p>
       <p>
         <strong>Норматив запаса.</strong> Средний запас товара в аптеке = страховой запас + половина недельной поставки, но не меньше выкладки в {P.display_units} пачки. Страховой запас рассчитан на уровень сервиса 95% при сроке поставки {P.lead_days} дня и заказе раз в {P.review_days} дней. Так редкий товар замораживает минимум выкладки в каждой аптеке, а ходовой - запас под свой спрос.
@@ -211,6 +228,28 @@ const stockVerb = (d: number) => (d <= 0 ? `экономит ${mlnAbs(d)}` : `р
       Случайные группы того же размера тоже экономят остатки: у маленькой группы матрица короче сама по себе. Вклад именно смысла сегментов - разница с ними, около {mlnAbs(auto.d_stock_zero_profit - rnd.d_stock_zero_profit)} остатков.{auto.d_stock_zero_profit < arch.d_stock_zero_profit && <> Архетипы отстают от автосегментов: архетип объединяет маленькие и большие аптеки одного типа, а сегмент учитывает ещё и размер.</>}
     </p>
 
+    <h3>Как это выглядит по неделям</h3>
+    <p>
+      Чтобы увидеть, откуда берётся результат, каждый способ выбирает свою матрицу только по первым {trainWeeks} неделям по тому же правилу - прибыль как у действующей матрицы при минимуме остатков, - и дальше матрица не меняется. По каждой неделе считаются прибыль по реальным продажам и остатки по нормативу, пересчитанному по спросу недели.
+    </p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Остатки по неделям</strong>
+        <span class="muted">Средний запас по нормативу, млн ₽. Пунктир - действующая матрица.</span>
+      </figcaption>
+      <div id="chart-weekly-stock" class="chart" role="img" aria-label="Остатки по неделям для каждого способа"></div>
+    </figure>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Прибыль по неделям относительно действующей матрицы</strong>
+        <span class="muted">Разница с прибылью действующей матрицы за неделю, млн ₽. Слева от вертикальной линии - недели, по которым выбиралась матрица, справа - новые.</span>
+      </figcaption>
+      <div id="chart-weekly-profit" class="chart" role="img" aria-label="Разница прибыли с действующей матрицей по неделям"></div>
+    </figure>
+    <p>
+      Линии остатков ровные: экономия заложена в самом составе матрицы, а не в отдельных неделях. Автосегменты держат в среднем {mlnAbs(wAuto.stock)} против {mlnAbs(wFact.stock)} у действующей матрицы, одна матрица на сеть - {mlnAbs(wOne.stock)}. Прибыль на неделях обучения у всех способов совпадает с действующей: так подобрана строгость. На новых неделях автосегменты недобирают около {mlnAbs(wAuto.dTestWeek)} прибыли в неделю ({pctS(wAuto.dTest, wAuto.factTest)}), {Math.abs(wRnd.dTest / wRnd.factTest - wAuto.dTest / wAuto.factTest) < 0.003 ? 'почти столько же' : 'сопоставимо с тем'}, сколько случайные группы того же размера. Значит, это эффект размера группы, а не её смысла: в маленьком сегменте вклад товара оценивается по небольшим продажам, и матрица частично подстраивается под случайные всплески первых недель. Поэтому в итоговом сравнении выше строгость каждого способа подбирается так, чтобы прибыль совпала именно на новых неделях, - часть экономии уходит на этот запас прочности.
+    </p>
+
     <h2>5. Как проверить полный эффект: пилот</h2>
     <p>
       Остатки расчёт сравнивает надёжно, а прибыль - только в части уже существующего спроса. Полный эффект покажет пилот:
@@ -238,35 +277,26 @@ const stockVerb = (d: number) => (d <= 0 ? `экономит ${mlnAbs(d)}` : `р
 
   mountCharts((init, { C, base, axis }) => {
     const narrow = window.innerWidth < 560;
-    const classColor: Record<string, string> = { A: C.series[1], B: C.series[0], C: C.series[5] };
     const mlnFmt = (x: number) => signed(mln(Math.abs(x)), x);
 
     // Парето
-    const pts = data.pareto as [number, number, string][];
+    const pts = data.pareto as [number, number][];
     init('chart-pareto').setOption({
       ...base,
-      legend: { top: 0, textStyle: { color: C.muted }, itemWidth: 10, itemHeight: 10 },
-      grid: { left: 52, right: 16, top: 36, bottom: 44 },
+      grid: { left: 52, right: 16, top: 16, bottom: 44 },
       tooltip: { ...base.tooltip, trigger: 'axis',
         formatter: (ps: any) => `${Math.round(ps[0].data[0] * 100)}% юнитов дают ${Math.round(ps[0].data[1] * 100)}% вклада` },
       xAxis: { ...axis, type: 'value', max: 1, name: 'доля юнитов', nameLocation: 'middle', nameGap: 28,
         axisLabel: { color: C.muted, formatter: (x: number) => Math.round(x * 100) + '%' } },
       yAxis: { ...axis, type: 'value', max: 1, axisLabel: { color: C.muted, formatter: (x: number) => Math.round(x * 100) + '%' } },
-      series: ['A', 'B', 'C'].map((s) => {
-        const part = pts.filter((p) => p[2] === s);
-        return {
-          name: `класс ${s}: ${part.length} юнитов`, type: 'line', showSymbol: false,
-          data: part, lineStyle: { color: classColor[s], width: 2 }, itemStyle: { color: classColor[s] },
-          areaStyle: { color: classColor[s], opacity: 0.25 },
-        };
-      }),
+      series: [{ type: 'line', showSymbol: false, data: pts, lineStyle: { color: C.series[1], width: 2 },
+        itemStyle: { color: C.series[1] }, areaStyle: { color: C.series[1], opacity: 0.25 } }],
     });
 
-    // варианты: шкала строгости (линия), ABC-пороги (точки), выбранный вариант
+    // варианты: шкала строгости (линия) и выбранный вариант
     const vs = data.variants.filter((v) => v.variant !== 'факт');
-    const expV = vs.filter((v) => v.variant.startsWith('эксп')).sort((a, b) => a.d_stock - b.d_stock);
-    const abcV = vs.filter((v) => !v.variant.startsWith('эксп'));
     const sel = vs.find((v) => v.selected)!;
+    const expV = vs.filter((v) => v !== sel).sort((a, b) => a.d_stock - b.d_stock);
     const pt = (v: any) => [v.d_stock / 1e6, v.d_profit / 1e6, v.variant, v.d_revenue, v.positions];
     const tip = (p: any) => {
       const [s, pr, name, rev, pos] = p.data;
@@ -284,8 +314,6 @@ const stockVerb = (d: number) => (d <= 0 ? `экономит ${mlnAbs(d)}` : `р
           itemStyle: { color: C.series[1] },
           markLine: { silent: true, symbol: 'none', lineStyle: { color: C.text, width: 1.2 }, label: { show: false },
             data: [{ yAxis: 0 }, { xAxis: 0 }] } },
-        { name: 'ABC-пороги', type: 'scatter', symbolSize: 11, data: abcV.map(pt), itemStyle: { color: C.series[0] },
-          label: { show: !narrow, position: 'bottom', color: C.muted, formatter: (p: any) => p.data[2] } },
         { name: 'выбранный', type: 'scatter', symbol: 'diamond', symbolSize: 16, data: [pt(sel)],
           itemStyle: { color: C.accent, borderColor: C.text, borderWidth: 1.5 },
           label: { show: true, position: 'top', color: C.text, formatter: 'выбран' } },
@@ -324,6 +352,39 @@ const stockVerb = (d: number) => (d <= 0 ? `экономит ${mlnAbs(d)}` : `р
       yAxis: { ...axis, type: 'value', name: 'Δ прибыль, млн ₽', nameLocation: 'middle', nameGap: 36 },
       series,
     });
+
+    // по неделям
+    const WK = data.weekly as Record<string, { lam: number | null; rows: number[][] }>;
+    const fw = WK['Действующая матрица'].rows;
+    const tw = data.params.train_weeks;
+    const wOrder = ['Действующая матрица', ...order];
+    const wColor: Record<string, string> = { ...color, 'Действующая матрица': C.text };
+    const split = { silent: true, symbol: 'none', lineStyle: { color: C.muted, type: 'dashed', width: 1.2 },
+      label: { show: false }, data: [{ xAxis: tw + 0.5 }] };
+    const newWeeks = { silent: true, itemStyle: { color: C.muted, opacity: 0.08 },
+      label: { show: true, position: 'insideTop', color: C.muted, distance: 4 },
+      data: [[{ xAxis: tw + 0.5, name: 'новые недели' }, { xAxis: fw.length + 0.5 }]] };
+    const weekly = (id: string, value: (r: number[], i: number) => number, fmt: (x: number) => string, withZero: boolean) =>
+      init(id).setOption({
+        ...base,
+        legend: { top: 0, textStyle: { color: C.muted }, itemWidth: 14, itemHeight: 4, data: wOrder },
+        grid: { left: 56, right: 20, top: narrow ? 72 : 44, bottom: 40 },
+        tooltip: { ...base.tooltip, trigger: 'axis', formatter: (ps: any[]) =>
+          `<b>Неделя ${ps[0].value[0]}</b>` + ps.map((q) => `<br/>${q.marker}${q.seriesName}: ${fmt(q.value[1])} млн ₽`).join('') },
+        xAxis: { ...axis, type: 'value', min: 0.5, max: fw.length + 0.5, interval: 0.5, splitLine: { show: false },
+          name: 'неделя', nameLocation: 'middle', nameGap: 26,
+          axisLabel: { color: C.muted, formatter: (x: number) => (Number.isInteger(x) ? String(x) : '') } },
+        yAxis: { ...axis, type: 'value', scale: !withZero, axisLabel: { color: C.muted, formatter: fmt } },
+        series: wOrder.filter((m) => m in WK).map((m, k) => ({
+          name: m, type: 'line', data: WK[m].rows.map((r, i) => [r[0], value(r, i)]), symbolSize: 5,
+          lineStyle: { color: wColor[m], width: m === 'Автосегменты' ? 3 : 1.6, type: m === 'Действующая матрица' ? 'dashed' : 'solid' },
+          itemStyle: { color: wColor[m] }, z: m === 'Автосегменты' ? 5 : 2,
+          ...(k === 0 ? { markLine: split, markArea: newWeeks } : {}),
+        })),
+      });
+    weekly('chart-weekly-stock', (r) => r[2] / 1e6, (x) => String(Math.round(x)), false);
+    weekly('chart-weekly-profit', (r, i) => (r[1] - fw[i][1]) / 1e6,
+      (x) => signed(Math.abs(x).toFixed(2).replace('.', ','), Number(x.toFixed(2))), true);
 
     // ширина матриц
     const w = data.width;
