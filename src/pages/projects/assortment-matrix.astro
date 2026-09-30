@@ -149,7 +149,7 @@ const stockVerbPl = (d: number) =>
     <figure class="card chart-card">
       <figcaption>
         <strong>Варианты матрицы: изменение остатков и прибыли относительно действующей</strong>
-        <span class="muted">Линия - шкала строгости: слева строгие варианты с меньшими остатками, справа мягкие. Выбран вариант, где линия пересекает ноль прибыли.</span>
+        <span class="muted">Точка (0; 0) - действующая матрица. По осям - на сколько вариант отличается от неё: по остаткам и по прибыли за {P.train_days / 7} недели. Линия - шкала строгости: слева строгие варианты с меньшими остатками, справа мягкие. Выбран вариант, где линия пересекает горизонтальную ось, то есть прибыль такая же, как у действующей матрицы.</span>
       </figcaption>
       <div id="chart-variants" class="chart chart-tall" role="img" aria-label="Кривая вариантов матрицы: изменение остатков и прибыли"></div>
       <details>
@@ -171,7 +171,7 @@ const stockVerbPl = (d: number) =>
       </details>
     </figure>
     <p>
-      Чем строже отбор, тем меньше денег в остатках, но после определённого порога вместе с залежавшимся товаром уходит и продаваемый: самый строгий вариант освобождает {mlnAbs(leanest.d_stock)}, но {leanest.d_profit < 0 ? `теряет ${mlnAbs(leanest.d_profit)} прибыли` : `даёт лишь ${mlnS(leanest.d_profit)} прибыли`}. Правило выбора: самый строгий вариант, который ещё удерживает прибыль действующей матрицы, - точка, где линия пересекает ноль прибыли. Строгость в этой точке подбирается точно ({lamText(P.selected_lambda)}): {positionsW(best.positions)} на аптеку вместо {int(fact.positions)} и на {mlnAbs(best.d_stock)} меньше денег в остатках ({pctS(best.d_stock, fact.stock)}).
+      Чем строже отбор, тем меньше денег в остатках, но после определённого порога вместе с залежавшимся товаром уходит и продаваемый: самый строгий вариант освобождает {mlnAbs(leanest.d_stock)}, но {leanest.d_profit < 0 ? `теряет ${mlnAbs(leanest.d_profit)} прибыли` : `даёт лишь ${mlnS(leanest.d_profit)} прибыли`}. Правило выбора: самый строгий вариант, который ещё удерживает прибыль действующей матрицы, - точка, где линия пересекает горизонтальную ось. Строгость в этой точке подбирается точно ({lamText(P.selected_lambda)}): {positionsW(best.positions)} на аптеку вместо {int(fact.positions)} и на {mlnAbs(best.d_stock)} меньше денег в остатках ({pctS(best.d_stock, fact.stock)}).
     </p>
     <details class="card more">
       <summary><strong>Подробнее: как задаётся строгость и считается запас</strong></summary>
@@ -325,8 +325,8 @@ const stockVerbPl = (d: number) =>
       legend: { top: 0, textStyle: { color: C.muted }, itemWidth: 10, itemHeight: 10 },
       grid: { left: 56, right: narrow ? 24 : 40, top: 40, bottom: 48 },
       tooltip: { ...base.tooltip, formatter: tip },
-      xAxis: { ...axis, type: 'value', name: 'Δ остатки, млн ₽', nameLocation: 'middle', nameGap: 30 },
-      yAxis: { ...axis, type: 'value', name: 'Δ прибыль, млн ₽', nameLocation: 'middle', nameGap: 36 },
+      xAxis: { ...axis, type: 'value', name: 'остатки: разница с действующей, млн ₽', nameLocation: 'middle', nameGap: 30 },
+      yAxis: { ...axis, type: 'value', name: 'прибыль: разница с действующей, млн ₽', nameLocation: 'middle', nameGap: 36 },
       series: [
         { name: 'шкала строгости', type: 'line', data: expV.map(pt), symbolSize: 6, lineStyle: { color: C.series[1], width: 2 },
           itemStyle: { color: C.series[1] },
@@ -366,8 +366,8 @@ const stockVerbPl = (d: number) =>
       grid: { left: 56, right: 20, top: narrow ? 72 : 44, bottom: 48 },
       tooltip: { ...base.tooltip, formatter: (p: any) =>
         `<b>${p.seriesName}</b><br/>${p.data.value ? p.data.value[2] : p.data[2]}<br/>Δ остатки: ${mlnFmt((p.data.value ?? p.data)[0] * 1e6)} млн ₽<br/>Δ прибыль: ${mlnFmt((p.data.value ?? p.data)[1] * 1e6)} млн ₽` },
-      xAxis: { ...axis, type: 'value', name: 'Δ остатки к действующей матрице, млн ₽', nameLocation: 'middle', nameGap: 30 },
-      yAxis: { ...axis, type: 'value', name: 'Δ прибыль, млн ₽', nameLocation: 'middle', nameGap: 36 },
+      xAxis: { ...axis, type: 'value', name: 'остатки: разница с действующей, млн ₽', nameLocation: 'middle', nameGap: 30 },
+      yAxis: { ...axis, type: 'value', name: 'прибыль: разница с действующей, млн ₽', nameLocation: 'middle', nameGap: 36 },
       series,
     });
 
