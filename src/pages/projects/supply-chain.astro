@@ -26,6 +26,11 @@ const whMax = Math.max(...H.warehouses.flatMap((w) => w.values));
 const stMax = Math.max(...H.warehouses.flatMap((w) => w.stores.flatMap((m) => m.values)));
 const heat = (v: number, max: number) => `background: color-mix(in srgb, var(--scale-bad) ${Math.round((v / max) * 80)}%, transparent)`;
 const firstWeekDays = 7 - ((new Date(meta.period_from).getDay() + 6) % 7);
+// старт продаж новинок
+const L = data.launch;
+const lCause = Object.fromEntries(L.causes.map((c) => [c.outcome, c.lost]));
+const lDist = (lCause['ошибка распределения'] ?? 0) + (lCause['перекос распределения'] ?? 0);
+const lSup = lCause['дефицит у поставщика'] ?? 0;
 const fmtDate = (s: string) => new Date(s).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 
 // шаги разбора: вопрос, итог при ответе «да», этап
@@ -140,10 +145,15 @@ const steps = [
     <figure class="card chart-card">
       <figcaption>
         <strong>Упущенные продажи по неделям, млн ₽</strong>
-        <span class="muted">Неделя - с понедельника. Всплески - перебои у поставщика и старт продаж iPhone 17 в конце сентября.</span>
+        <span class="muted">Неделя - с понедельника. Рост в середине периода - перебои у поставщика, пик в конце сентября - старт продаж iPhone 17.</span>
       </figcaption>
       <div id="chart-weekly" class="chart" role="img" aria-label="Столбчатая диаграмма упущенных продаж по неделям"></div>
     </figure>
+    <p>
+      <strong>Старт продаж iPhone 17.</strong> Новинки продаются с {fmtDate(L.first_sale)}, но на них пришлось {mln(L.lost)} млн ₽ - {pct(L.lost / total)} всех потерь за период. Неделя с {fmtDate(L.peak_week)} - пик всего периода: {mln(L.peak_lost)} млн ₽ потерь, из них {mln(L.peak_new)} млн - новинки, больше всего {L.top_model}. {lDist > lSup
+        ? `Главная причина - не квота поставщика, а распределение: на него приходится ${pct(lDist / L.lost)} потерь по новинкам, на дефицит у поставщика - ${pct(lSup / L.lost)}. ${pct(L.soldout / L.lost)} потерь - дни, когда товар закончился к вечеру: на старте спрос в разы выше обычного, и запаса магазина хватает ненадолго, хотя на складе товар есть. На старт новинки стоит поднимать запасы и частоту пополнения магазинов, а не только объём закупа.`
+        : `Главная причина - квота поставщика: на неё приходится ${pct(lSup / L.lost)} потерь по новинкам, на распределение - ${pct(lDist / L.lost)}.`}
+    </p>
 
     <h2>4. Сквозная картина по одному товару</h2>
     <p>
