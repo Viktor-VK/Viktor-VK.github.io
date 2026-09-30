@@ -20,6 +20,12 @@ const wc = data.cover['Склад'];
 const scLast = sc[sc.length - 1];
 const storeFlat = sc[1].deficit - scLast.deficit < 0.03;       // выше 3-5 дней дефицит почти не падает
 const whSteep = wc[0].deficit > 3 * wc[1].deficit;             // склады с малым запасом пустеют заметно чаще
+// тепловая карта: дни дефицита «магазин - товар - день» по неделям; яркость - от максимума своего уровня
+const H = data.heatmap;
+const whMax = Math.max(...H.warehouses.flatMap((w) => w.values));
+const stMax = Math.max(...H.warehouses.flatMap((w) => w.stores.flatMap((m) => m.values)));
+const heat = (v: number, max: number) => `background: color-mix(in srgb, var(--scale-bad) ${Math.round((v / max) * 80)}%, transparent)`;
+const firstWeekDays = 7 - ((new Date(meta.period_from).getDay() + 6) % 7);
 const fmtDate = (s: string) => new Date(s).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 
 // шаги разбора: вопрос, итог при ответе «да», этап
@@ -72,6 +78,35 @@ const steps = [
     <p>
       Дефицит в магазине бывает двух видов: <strong>весь день без товара</strong> ({int(meta.days_empty)} «магазино-дней» за период) и <strong>товар закончился за день</strong> ({int(meta.days_soldout)}). Во втором случае часть покупателей приходит, когда товара уже нет.
     </p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Дни дефицита в магазинах по неделям</strong>
+        <span class="muted">Число «магазино-товаро-дней» за неделю, когда товара не было весь день или он закончился: один товар без остатка 6 дней - это 6. Строка склада - сумма по его магазинам; нажмите на склад, чтобы раскрыть магазины. Первая неделя неполная ({firstWeekDays} дня).</span>
+      </figcaption>
+      <div class="heat-wrap">
+        <table class="heat">
+          <thead>
+            <tr><th>Склад / магазин</th>{H.weeks.map((w) => <th>{w}</th>)}</tr>
+          </thead>
+          <tbody>
+            {H.warehouses.map((w, i) => (
+              <>
+                <tr class="wh">
+                  <th><button type="button" aria-expanded="false" data-wh={i}><span class="caret" aria-hidden="true">▸</span>{w.name} <span class="muted">({w.stores.length} маг.)</span></button></th>
+                  {w.values.map((v) => <td style={heat(v, whMax)}>{v}</td>)}
+                </tr>
+                {w.stores.map((m) => (
+                  <tr class="store" data-parent={i} hidden>
+                    <th>{m.name.replace('Магазин ', '')}</th>
+                    {m.values.map((v) => <td style={heat(v, stMax)}>{v || ''}</td>)}
+                  </tr>
+                ))}
+              </>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </figure>
 
     <h2>2. Как определяется причина</h2>
     <p>
@@ -282,6 +317,69 @@ const steps = [
     align-self: flex-start;
   }
 
+  .heat-wrap {
+    overflow-x: auto;
+  }
+
+  .heat {
+    border-collapse: separate;
+    border-spacing: 2px;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .heat th,
+  .heat td {
+    padding: 4px 3px;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .heat td {
+    min-width: 30px;
+    border-radius: 4px;
+  }
+
+  .heat thead th {
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  .heat tbody th {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--surface);
+    text-align: left;
+    font-weight: 400;
+  }
+
+  .heat .wh th button {
+    all: unset;
+    cursor: pointer;
+    font-weight: 700;
+  }
+
+  .heat .wh th button:focus-visible {
+    outline: 2px solid var(--accent);
+    border-radius: 4px;
+  }
+
+  .heat .caret {
+    display: inline-block;
+    width: 1em;
+    transition: transform 0.15s;
+  }
+
+  .heat button[aria-expanded='true'] .caret {
+    transform: rotate(90deg);
+  }
+
+  .heat .store th {
+    padding-left: 18px;
+    color: var(--muted);
+  }
+
   .chart-xl {
     height: 560px;
   }
@@ -300,6 +398,17 @@ const steps = [
     }
   }
 </style>
+
+<script>
+  // тепловая карта: раскрытие склада до магазинов
+  document.querySelectorAll<HTMLButtonElement>('.heat .wh button').forEach((b) => {
+    b.addEventListener('click', () => {
+      const open = b.getAttribute('aria-expanded') !== 'true';
+      b.setAttribute('aria-expanded', String(open));
+      document.querySelectorAll<HTMLTableRowElement>(`.heat tr[data-parent="${b.dataset.wh}"]`).forEach((r) => (r.hidden = !open));
+    });
+  });
+</script>
 
 <script>
   import data from '../../data/supply-chain.json';
