@@ -14,6 +14,12 @@ const int = (x: number) => Math.round(x).toLocaleString('ru-RU');
 const total = causes.reduce((s, c) => s + c.empty + c.soldout, 0);
 const byOutcome = Object.fromEntries(causes.map((c) => [c.outcome, c.empty + c.soldout]));
 const internal = total - (byOutcome['дефицит у поставщика'] ?? 0);
+// фактические запасы: группы пар по среднему запасу в днях продаж
+const sc = data.cover['Магазин'];
+const wc = data.cover['Склад'];
+const scLast = sc[sc.length - 1];
+const storeFlat = sc[1].deficit - scLast.deficit < 0.03;       // выше 3-5 дней дефицит почти не падает
+const whSteep = wc[0].deficit > 3 * wc[1].deficit;             // склады с малым запасом пустеют заметно чаще
 const fmtDate = (s: string) => new Date(s).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 
 // шаги разбора: вопрос, итог при ответе «да», этап
@@ -64,7 +70,7 @@ const steps = [
       Учётная система хранит только текущий остаток и журнал движений. Остаток на каждый прошлый день восстанавливается «откатом» назад: из сегодняшнего остатка вычитаются все движения после нужного дня. Так получена полная история по каждому складу и магазину - она совпала с истинной из симуляции в {pct(meta.match_share)} случаев.
     </p>
     <p>
-      Дефицит в магазине бывает двух видов: <strong>весь день без товара</strong> ({int(meta.days_empty)} «магазино-дней» за период) и <strong>товар закончился за день</strong> ({int(meta.days_soldout)}). Второй вид тоже считается проблемой: магазин должен держать запас на неделю, и проходов через ноль быть не должно.
+      Дефицит в магазине бывает двух видов: <strong>весь день без товара</strong> ({int(meta.days_empty)} «магазино-дней» за период) и <strong>товар закончился за день</strong> ({int(meta.days_soldout)}). Во втором случае часть покупателей приходит, когда товара уже нет.
     </p>
 
     <h2>2. Как определяется причина</h2>
@@ -116,16 +122,36 @@ const steps = [
       <div id="chart-chain" class="chart chart-xl" role="img" aria-label="Графики закупа, остатков складов и магазинов в дефиците"></div>
     </figure>
 
-    <h2>5. Системные находки</h2>
+    <h2>5. Хватает ли запасов</h2>
     <p>
-      Заметную часть потерь дают не разовые сбои, а сами правила работы цепочки. Такие проблемы исправляются один раз - изменением правила.
+      Запас в днях - остаток, делённый на средние продажи в день; для склада - на продажи всех его магазинов. В среднем магазин держит {num(meta.store_cover_days)} дня продаж товара, склад - {num(meta.wh_cover_days)} дня продаж своего региона. Пары «товар - магазин» и «товар - склад» сгруппированы по среднему запасу, и для каждой группы посчитано, как часто товар был в дефиците.
+    </p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Доля дней дефицита в зависимости от запаса</strong>
+        <span class="muted">Магазин - доля дней, когда товара не было весь день или он закончился; склад - доля дней, когда склад пуст. Под столбцом - доля пар в группе.</span>
+      </figcaption>
+      <div id="chart-cover" class="chart" role="img" aria-label="Столбчатые диаграммы доли дней дефицита по группам запаса"></div>
+    </figure>
+    <p>
+      Склад с запасом {wc[0].group} продаж региона пуст {pct(wc[0].deficit)} дней, с запасом {wc[1].group} - {pct(wc[1].deficit)}. {whSteep ? `Узкое место - склады с малым запасом: так держится ${pct(wc[0].share)} пар «товар - склад», и именно они чаще всего оставляют магазины без пополнения.` : ''}
+    </p>
+    <p>
+      У магазинов с запасом {sc[0].group} продаж товар в дефиците {pct(sc[0].deficit)} дней, с запасом {scLast.group} - {pct(scLast.deficit)}. {storeFlat ? 'Поднимать запасы магазинов сверх 3-5 дней почти бесполезно: полка пустеет прежде всего тогда, когда пуст склад.' : 'Чем больше запас магазина, тем реже дефицит.'}
+    </p>
+    <p>
+      При этом {pct(meta.soldout_dist_share)} потерь в дни, когда товар закончился за день, пришлись на время, когда товар на складе был: такие магазины можно было пополнить больше или раньше.
+    </p>
+
+    <h2>6. Прогноз закупа после дефицита</h2>
+    <p>
+      Закупщик заказывает по средним отгрузкам склада за три недели. Пока склад пуст, отгрузок нет, прогноз падает - и следующий заказ снова оказывается маленьким: дефицит продлевает сам себя. Такая ошибка исправляется один раз - изменением правила прогноза.
     </p>
     <div class="pair">
-      <div class="card stat"><span class="stat-label">Запас магазина</span><span class="stat-value">{num(meta.store_cover_days)} дня</span><span class="muted">продаж при норме 7 дней: магазин пополняется до 5 дней запаса, и при всплеске спроса товар заканчивается к вечеру. {pct(meta.soldout_dist_share)} таких потерь - при товаре на складе.</span></div>
-      <div class="card stat"><span class="stat-label">Ошибки закупа из-за правила прогноза</span><span class="stat-value">{pct(meta.buy_err_systemic_share)}</span><span class="muted">закупщик заказывает по средним отгрузкам склада; после дефицита отгрузок нет, прогноз падает, и следующий заказ снова мал.</span></div>
+      <div class="card stat"><span class="stat-label">Ошибки закупа из-за правила прогноза</span><span class="stat-value">{pct(meta.buy_err_systemic_share)}</span><span class="muted">от {mln(meta.buy_err)} млн ₽ потерь с итогом «ошибка закупа» - без специально заложенных сбоев закупщика</span></div>
     </div>
 
-    <h2>6. Проверка</h2>
+    <h2>7. Проверка</h2>
     <p>
       В симуляцию заранее заложены проблемы на каждом этапе: перебои у поставщика, недозаказы и перезаказы, неравномерный закуп дефицитного товара, пропуски пополнения магазинов. Разбор о них не знает и находит их только по учётным данным.
     </p>
@@ -277,7 +303,7 @@ const steps = [
 
 <script>
   import data from '../../data/supply-chain.json';
-  import { mountCharts, int, mln } from '../../scripts/charts';
+  import { mountCharts, int, mln, pct } from '../../scripts/charts';
 
   mountCharts((init, { C, base, axis }) => {
     const narrow = window.innerWidth < 560;
@@ -315,6 +341,25 @@ const steps = [
       xAxis: { ...axis, type: 'category', data: Wk.weeks.map(dm), splitLine: { show: false }, axisLabel: { color: C.muted } },
       yAxis: { ...axis, type: 'value', axisLabel: { color: C.muted, formatter: (x: number) => mln(x, 0) } },
       series: stages.map((st) => ({ name: st, type: 'bar', stack: 'w', data: Wk[st], itemStyle: { color: stageColor[st] } })),
+    });
+
+    // фактические запасы: доля дней дефицита по группам запаса, магазины и склады
+    const Cv = data.cover as Record<string, { group: string; deficit: number; share: number }[]>;
+    const lvls: [string, string][] = [['Магазин', 'магазины'], ['Склад', 'склады']];
+    init('chart-cover').setOption({
+      ...base,
+      grid: narrow
+        ? [{ left: 44, right: 8, top: 28, height: '30%' }, { left: 44, right: 8, top: '62%', bottom: 40 }]
+        : [{ left: 44, right: '54%', top: 30, bottom: 48 }, { left: '54%', right: 8, top: 30, bottom: 48 }],
+      tooltip: { ...base.tooltip, trigger: 'axis', axisPointer: { type: 'shadow' } },
+      xAxis: lvls.map(([k], i) => ({ ...axis, type: 'category', gridIndex: i, splitLine: { show: false },
+        data: Cv[k].map((c) => c.group), axisLabel: { color: C.muted, fontSize: 10, interval: 0,
+          formatter: (v: string, j: number) => `${v}\n${pct(Cv[k][j].share)} пар` } })),
+      yAxis: lvls.map(([, t], i) => ({ ...axis, type: 'value', gridIndex: i, name: t, nameTextStyle: { color: C.muted, align: 'left' },
+        axisLabel: { color: C.muted, formatter: (x: number) => pct(x) } })),
+      series: lvls.map(([k], i) => ({ name: 'доля дней дефицита', type: 'bar', xAxisIndex: i, yAxisIndex: i, barMaxWidth: 36,
+        data: Cv[k].map((c) => c.deficit), itemStyle: { color: C.series[i] },
+        label: { show: true, position: 'top', color: C.muted, formatter: (p: any) => pct(p.value) } })),
     });
 
     // сквозная картина по товару: три панели с общей осью дат
