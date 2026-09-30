@@ -35,6 +35,11 @@ const rnd = E['Случайные группы'];
 const arch = E['Архетипы'];
 const methodOrder = ['Автосегменты', 'Архетипы', 'Случайные группы', 'Категории A-E', 'Одна матрица на сеть'];
 const rows = methodOrder.filter((m) => m in E).map((m) => E[m]);
+// ширина матриц по сегментам: где сокращение сильнее всего и где матрица шире действующей
+const cutMost = [...data.width].sort((a, b) => a.new / a.fact - b.new / b.fact)[0];
+const grown = data.width.filter((x) => x.new > x.fact);
+const leastCut = data.width.filter((x) => x.new <= x.fact).sort((a, b) => b.new / b.fact - a.new / a.fact)[0];
+
 // автосегменты лучшие в обоих разрезах: меньше всех остатков при той же прибыли и больше всех прибыли при тех же остатках
 const autoBest = rows.every((e) => e.d_stock_zero_profit >= E['Автосегменты'].d_stock_zero_profit
   && e.d_profit_zero_stock <= E['Автосегменты'].d_profit_zero_stock);
@@ -184,12 +189,15 @@ const stockVerbPl = (d: number) =>
     </details>
 
     <h2>3. Матрица по сегментам</h2>
+    <p>
+      Сейчас ширина матрицы зависит только от площади аптеки (категория A-E), новая - от того, что покупают в сегменте. Поэтому сокращение неравномерное: сильнее всего сокращается матрица сегмента «{cutMost.segment}»: {int(cutMost.fact)} → {int(cutMost.new)} позиций ({pctS(cutMost.new - cutMost.fact, cutMost.fact)}), а в сегменте «{leastCut.segment}» почти не меняется ({pctS(leastCut.new - leastCut.fact, leastCut.fact)}).{grown.length > 0 && ` В ${grown.length === 1 ? 'одном сегменте' : `${grown.length} сегментах`} матрица, наоборот, становится шире: там продаются товары, которых нет в действующей матрице.`}
+    </p>
     <figure class="card chart-card">
       <figcaption>
-        <strong>Ширина матрицы: действующая и выбранная</strong>
-        <span class="muted">Позиций на аптеку сегмента, сегменты по числу аптек.</span>
+        <strong>Сколько позиций в матрице: сейчас и по новому расчёту</strong>
+        <span class="muted">Позиций в матрице одной аптеки. «Сейчас» - среднее по аптекам сегмента: в один сегмент попадают аптеки разных категорий A-E, у каждой своя действующая матрица. «Новая» - одна матрица на весь сегмент. В скобках - число аптек.</span>
       </figcaption>
-      <div id="chart-width" class="chart chart-tall" role="img" aria-label="Столбчатая диаграмма ширины матриц по сегментам"></div>
+      <div id="chart-width" class="chart chart-tall" role="img" aria-label="Число позиций в матрице по сегментам: сейчас и по новому расчёту"></div>
     </figure>
 
     <h2>4. Проверка на новых неделях</h2>
@@ -413,8 +421,8 @@ const stockVerbPl = (d: number) =>
         data: w.map((x) => `${x.segment} (${x.n_stores})`),
         axisLabel: { color: C.text, width: narrow ? 140 : 280, overflow: 'truncate', fontSize: narrow ? 10 : 12 } },
       series: [
-        { name: 'действующая', type: 'bar', data: w.map((x) => x.fact), itemStyle: { color: C.series[5] }, barGap: '10%' },
-        { name: 'выбранная', type: 'bar', data: w.map((x) => x.new), itemStyle: { color: C.series[0] } },
+        { name: 'сейчас', type: 'bar', data: w.map((x) => x.fact), itemStyle: { color: C.series[5] }, barGap: '10%' },
+        { name: 'новая', type: 'bar', data: w.map((x) => x.new), itemStyle: { color: C.series[0] } },
       ],
     });
   });
