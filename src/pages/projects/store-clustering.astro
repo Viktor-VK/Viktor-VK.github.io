@@ -42,7 +42,8 @@ const economy = segments.filter((s) => s.segment.includes('эконом'));
 const premiumN = premium.map((s) => s.n).reduce((a, b) => a + b, 0);
 const economyN = economy.map((s) => s.n).reduce((a, b) => a + b, 0);
 const Zm = Object.fromEntries(matrix.experiment.map((e) => [e.method, e]));
-const stockVerb = (d: number) => (d <= 0 ? `экономит ${mlnAbs(d)}` : `раздувает остатки на ${mlnAbs(d)}`);
+const moreLess = (d: number) =>
+  Math.abs(d) < 2e6 ? 'примерно столько же остатков, сколько сейчас' : `на ${mlnAbs(d)} ${d > 0 ? 'больше' : 'меньше'} остатков, чем сейчас`;
 const sgn = (x: number) => (x > 0 ? '+' : x < 0 ? '-' : '');
 const mlnAbs = (x: number) => num(Math.abs(x) / 1e6, 1) + ' млн ₽';
 const mlnS = (x: number) => sgn(x) + mlnAbs(x);
@@ -73,7 +74,7 @@ const kLabel: Record<string, string> = { 'Площадь': 'Площадь', 'В
       <ul>
         <li><strong>Задача.</strong> Один ассортимент на всю сеть означает излишки в одних точках и упущенную выручку в других. Нужно понять, какие типы точек есть в сети.</li>
         <li><strong>Что сделано.</strong> {meta.stores_used} аптек разбиты на {meta.segments} сегментов по размеру, ассортименту и ценам - полностью автоматически, с понятными названиями вида «{ex.segment}».</li>
-        <li><strong>Результат.</strong> Ассортиментным матрицам, построенным по этим сегментам, нужно на {mlnAbs(Zm['Автосегменты'].d_stock_zero_profit)} меньше денег в остатках, чтобы удержать прибыль действующей матрицы. Одна матрица на всю сеть при той же прибыли {stockVerb(Zm['Одна матрица на сеть'].d_stock_zero_profit)}, текущее деление по площади {stockVerb(Zm['Категории A-E'].d_stock_zero_profit)}. Подробности - на <a href="/projects/assortment-matrix/">странице матрицы</a>.</li>
+        <li><strong>Результат.</strong> Ассортиментным матрицам, построенным по этим сегментам, нужно на {mlnAbs(Zm['Автосегменты'].d_stock_zero_profit)} меньше денег в остатках, чтобы удержать прибыль действующей матрицы. Для сравнения тот же метод, но без сегментов: одной матрице на всю сеть для той же прибыли понадобится {moreLess(Zm['Одна матрица на сеть'].d_stock_zero_profit)}, а матрицам по нынешним категориям площади A-E - {moreLess(Zm['Категории A-E'].d_stock_zero_profit)}{Zm['Категории A-E'].d_stock_zero_profit > 2e6 ? ': у маленьких аптек матрица по площади получается шире, чем им нужно.' : '.'} Подробности - на <a href="/projects/assortment-matrix/">странице матрицы</a>.</li>
       </ul>
     </section>
 
