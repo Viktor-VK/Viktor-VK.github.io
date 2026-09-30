@@ -3,7 +3,7 @@ import Base from '../../layouts/Base.astro';
 import data from '../../data/supply-chain.json';
 import '../../styles/project.css';
 
-const codeUrl = 'https://github.com/Viktor-VK/portfolio/tree/supply-chain/' + encodeURIComponent('Сквозной анализ цепи поставок');
+const codeUrl = 'https://github.com/Viktor-VK/portfolio/tree/master/' + encodeURIComponent('Сквозной анализ цепи поставок');
 const { meta, causes } = data;
 
 const num = (x: number, d = 1) => x.toFixed(d).replace('.', ',');
@@ -84,7 +84,7 @@ const steps = [
       <div class="node"><strong>{meta.stores} магазинов</strong><span class="muted">продают покупателям</span></div>
     </div>
     <p>
-      Учётная система хранит только текущий остаток и журнал движений. Остаток на каждый прошлый день восстанавливается «откатом» назад: из сегодняшнего остатка вычитаются все движения после нужного дня. Так получена полная история по каждому складу и магазину - она совпала с истинной из симуляции в {pct(meta.match_share)} случаев.
+      Учётная система хранит только текущий остаток и журнал движений. Остаток на каждый прошлый день восстанавливается «откатом» назад: из сегодняшнего остатка вычитаются все движения после нужного дня - этот метод подробно разобран в проекте <a href="/projects/stock-history/">«Восстановление истории остатков»</a>. Так получена полная история по каждому складу и магазину - она совпала с истинной из симуляции в {pct(meta.match_share)} случаев.
     </p>
     <p>
       Дефицит в магазине бывает двух видов: <strong>весь день без товара</strong> ({int(meta.days_empty)} «магазино-дней» за период) и <strong>товар закончился за день</strong> ({int(meta.days_soldout)}). Во втором случае часть покупателей приходит, когда товара уже нет.

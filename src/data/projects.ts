@@ -70,6 +70,6 @@ export const projects: Project[] = [
     status: 'wip',
     page: '/projects/supply-chain/',
     pageLabel: 'Смотреть расчёт',
-    code: 'https://github.com/Viktor-VK/portfolio/tree/supply-chain/' + encodeURIComponent('Сквозной анализ цепи поставок'),
+    code: folder('Сквозной анализ цепи поставок'),
   },
 ];
