@@ -15,7 +15,6 @@ export const profile = {
   github: 'https://github.com/Viktor-VK',
   contacts: {
     telegram: 'https://t.me/Kobcev' as string | null,
-    channel: 'https://t.me/zamkivp' as string | null,
     email: 'mailto:kobtsev.victor@yandex.ru' as string | null,
   },
 };
