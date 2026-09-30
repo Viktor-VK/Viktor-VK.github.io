@@ -1,0 +1,357 @@
+---
+import Base from '../../layouts/Base.astro';
+import data from '../../data/supply-chain.json';
+import '../../styles/project.css';
+
+const codeUrl = 'https://github.com/Viktor-VK/portfolio/tree/supply-chain/' + encodeURIComponent('Сквозной анализ цепи поставок');
+const { meta, causes } = data;
+
+const num = (x: number, d = 1) => x.toFixed(d).replace('.', ',');
+const mln = (x: number, d = 0) => num(x / 1e6, d);
+const pct = (x: number, d = 0) => num(x * 100, d) + '%';
+const int = (x: number) => Math.round(x).toLocaleString('ru-RU');
+
+const total = causes.reduce((s, c) => s + c.empty + c.soldout, 0);
+const byOutcome = Object.fromEntries(causes.map((c) => [c.outcome, c.empty + c.soldout]));
+const internal = total - (byOutcome['дефицит у поставщика'] ?? 0);
+const fmtDate = (s: string) => new Date(s).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+
+// шаги разбора: вопрос, итог при ответе «да», этап
+const steps = [
+  { q: 'Остатка склада накануне вечером хватало, чтобы довезти товар этому магазину?', outcome: 'ошибка распределения', note: 'склад не довёз товар', stage: 'dist' },
+  { q: 'В других магазинах этого склада товар лежит с запасом больше недели продаж?', outcome: 'перекос распределения', note: 'склад развёз товар неравномерно', stage: 'dist' },
+  { q: 'Поставщик привёз весь последний заказ (или заказа не было)?', outcome: 'ошибка закупа', note: 'заказали недостаточно', stage: 'buy' },
+  { q: 'В других регионах товар лежит с запасом больше двух недель продаж?', outcome: 'перекос закупа', note: 'дефицитный товар неравномерно распределён между складами', stage: 'buy' },
+];
+---
+
+<Base
+  title="Сквозной анализ цепи поставок"
+  description="Движение товара от поставщика через склады до магазинов по дням и причина каждого дня дефицита: поставщик, закуп или распределение."
+>
+  <article class="project-page">
+    <p class="muted crumbs"><a href="/#projects">Проекты</a> / сквозной анализ цепи поставок</p>
+    <span class="eyebrow">Проект в работе · Python, SQL, DuckDB, симуляция</span>
+    <h1>Сквозной анализ цепи поставок</h1>
+    <p class="lead">
+      Когда товара нет на полке магазина, важно понять, где в цепочке «поставщик - склад - магазин» возникла проблема: от этого зависит, кто и что должен исправить. Расчёт восстанавливает движение товара по дням на всех этапах и для каждого дня дефицита в магазине называет причину.
+    </p>
+
+    <div class="card notice">
+      <p>
+        <strong>Данные синтетические.</strong> Это симуляция сети магазинов электроники: {meta.skus} моделей смартфонов Apple, поставщик, {meta.warehouses} склада и {meta.stores} магазинов, {fmtDate(meta.period_from)} - {fmtDate(meta.period_to)} 2025 года, включая выход iPhone 17. Разбор использует только то, что есть в учётной системе: заказы поставщику, журнал движений и текущий остаток. В симуляцию специально заложены проблемы на каждом этапе, чтобы проверить, что разбор их находит. Названия моделей реальные, цены и объёмы условные.
+      </p>
+    </div>
+
+    <section class="card summary">
+      <span class="eyebrow">Коротко</span>
+      <ul>
+        <li><strong>Задача.</strong> Дефицит в магазине может возникнуть на любом этапе: поставщик недопоставил, закупщик заказал мало, склад не довёз. Без разбора непонятно, кому и что исправлять.</li>
+        <li><strong>Что сделано.</strong> Восстановлены остатки каждого склада и магазина на каждый день, а для каждого дня дефицита причина определяется по пяти простым правилам - от магазина вверх по цепочке.</li>
+        <li><strong>Результат.</strong> Дефицит стоил сети около {mln(meta.lost_est)} млн ₽ - {pct(meta.lost_est / meta.sales, 1)} продаж. {pct(internal / total)} этих потерь - ошибки внутри сети, в закупе и распределении, которые можно исправить; остальное - нехватка товара у поставщика.</li>
+      </ul>
+    </section>
+
+    <h2>1. Как движется товар</h2>
+    <div class="flowline" aria-label="Схема движения товара">
+      <div class="node"><strong>Поставщик</strong><span class="muted">подтверждает заказ целиком или частично</span></div>
+      <div class="link"><span aria-hidden="true">→</span><span class="muted">закуп раз в неделю, доставка 2 дня</span></div>
+      <div class="node"><strong>{meta.warehouses} склада</strong><span class="muted">каждый обслуживает свой регион</span></div>
+      <div class="link"><span aria-hidden="true">→</span><span class="muted">пополнение каждый день, доставка 1 день</span></div>
+      <div class="node"><strong>{meta.stores} магазинов</strong><span class="muted">продают покупателям</span></div>
+    </div>
+    <p>
+      Учётная система хранит только текущий остаток и журнал движений. Остаток на каждый прошлый день восстанавливается «откатом» назад: из сегодняшнего остатка вычитаются все движения после нужного дня. Так получена полная история по каждому складу и магазину - она совпала с истинной из симуляции в {pct(meta.match_share)} случаев.
+    </p>
+    <p>
+      Дефицит в магазине бывает двух видов: <strong>весь день без товара</strong> ({int(meta.days_empty)} «магазино-дней» за период) и <strong>товар закончился за день</strong> ({int(meta.days_soldout)}). Второй вид тоже считается проблемой: магазин должен держать запас на неделю, и проходов через ноль быть не должно.
+    </p>
+
+    <h2>2. Как определяется причина</h2>
+    <p>
+      Для каждого дня дефицита разбор идёт по цепочке вверх и останавливается на первом ответе «да». Статус модели - новинка или выводимая - не важен: если товар продаётся, его нужно закупать.
+    </p>
+    <div class="card decision">
+      <div class="start">Дефицит в магазине</div>
+      {steps.map((s, i) => (
+        <>
+          <div class="step">
+            <div class="q"><span class="n">{i + 1}</span>{s.q}</div>
+            <div class={`out ${s.stage}`}><span class="yes">да</span><strong>{s.outcome}</strong><span class="muted">{s.note}</span></div>
+          </div>
+          <div class="no" aria-hidden="true">нет ↓</div>
+        </>
+      ))}
+      <div class="out sup last"><strong>дефицит у поставщика</strong><span class="muted">товара не хватило на всех - это не ошибка сети</span></div>
+    </div>
+
+    <h2>3. Где теряются деньги</h2>
+    <p>
+      Потери дня без товара - все ожидаемые продажи этого дня. Если товар закончился за день, учёт не видит покупателей, пришедших позже; их число оценивается по среднему спросу и утреннему остатку - покупатели приходят случайно, и эту случайность можно посчитать.
+    </p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Упущенные продажи по причинам, млн ₽</strong>
+        <span class="muted">Цвет - этап цепочки: распределение, закуп, поставщик. Яркая часть - дни без товара, приглушённая - дни, когда товар закончился.</span>
+      </figcaption>
+      <div id="chart-causes" class="chart" role="img" aria-label="Столбчатая диаграмма упущенных продаж по причинам"></div>
+    </figure>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>Упущенные продажи по неделям, млн ₽</strong>
+        <span class="muted">Неделя - с понедельника. Всплески - перебои у поставщика и старт продаж iPhone 17 в конце сентября.</span>
+      </figcaption>
+      <div id="chart-weekly" class="chart" role="img" aria-label="Столбчатая диаграмма упущенных продаж по неделям"></div>
+    </figure>
+
+    <h2>4. Сквозная картина по одному товару</h2>
+    <p>
+      Один товар на всех этапах сразу - {data.example.sku}. Сверху - сколько закупщик заказал и сколько подтвердил поставщик, в середине - остаток каждого склада, внизу - сколько магазинов этого склада были в дефиците. Видно, как недопоставка и неравномерный закуп доходят до полок: пока один склад пуст, у его магазинов растёт дефицит.
+    </p>
+    <figure class="card chart-card">
+      <figcaption>
+        <strong>{data.example.sku}: закуп, склады и магазины</strong>
+        <span class="muted">Товар выбран автоматически - на нём встречается больше всего разных причин дефицита.</span>
+      </figcaption>
+      <div id="chart-chain" class="chart chart-xl" role="img" aria-label="Графики закупа, остатков складов и магазинов в дефиците"></div>
+    </figure>
+
+    <h2>5. Системные находки</h2>
+    <p>
+      Заметную часть потерь дают не разовые сбои, а сами правила работы цепочки. Такие проблемы исправляются один раз - изменением правила.
+    </p>
+    <div class="pair">
+      <div class="card stat"><span class="stat-label">Запас магазина</span><span class="stat-value">{num(meta.store_cover_days)} дня</span><span class="muted">продаж при норме 7 дней: магазин пополняется до 5 дней запаса, и при всплеске спроса товар заканчивается к вечеру. {pct(meta.soldout_dist_share)} таких потерь - при товаре на складе.</span></div>
+      <div class="card stat"><span class="stat-label">Ошибки закупа из-за правила прогноза</span><span class="stat-value">{pct(meta.buy_err_systemic_share)}</span><span class="muted">закупщик заказывает по средним отгрузкам склада; после дефицита отгрузок нет, прогноз падает, и следующий заказ снова мал.</span></div>
+    </div>
+
+    <h2>6. Проверка</h2>
+    <p>
+      В симуляцию заранее заложены проблемы на каждом этапе: перебои у поставщика, недозаказы и перезаказы, неравномерный закуп дефицитного товара, пропуски пополнения магазинов. Разбор о них не знает и находит их только по учётным данным.
+    </p>
+    <div class="pair">
+      <div class="card stat"><span class="stat-label">Верно назван этап цепочки</span><span class="stat-value">{pct(meta.hit)}</span><span class="muted">потерь, за которыми стоит заложенная проблема</span></div>
+      <div class="card stat"><span class="stat-label">Оценка упущенных продаж</span><span class="stat-value">{mln(meta.lost_est)} млн ₽</span><span class="muted">истинные по симуляции - {mln(meta.lost_true)} млн ₽</span></div>
+    </div>
+
+    <p class="actions">
+      <a class="btn primary" href={codeUrl}>Ноутбук на GitHub</a>
+    </p>
+  </article>
+</Base>
+
+<style>
+  .flowline {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    margin: 12px 0 18px;
+  }
+
+  .flowline .node {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    font-size: 0.9rem;
+  }
+
+  .flowline .link {
+    flex: 0.8;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    font-size: 0.8rem;
+  }
+
+  .flowline .link span:first-child {
+    font-size: 1.4rem;
+    color: var(--muted);
+    line-height: 1;
+  }
+
+  .decision {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px;
+    margin: 12px 0 20px;
+  }
+
+  .decision .start {
+    align-self: flex-start;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+
+  .decision .step {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  .decision .q {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.9rem;
+  }
+
+  .decision .n {
+    flex: none;
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: 50%;
+    background: var(--surface-2);
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1.4rem;
+  }
+
+  .decision .out {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 8px 10px;
+    border-left: 4px solid var(--muted);
+    border-radius: 8px;
+    background: var(--surface-2);
+    font-size: 0.85rem;
+  }
+
+  .decision .out.dist {
+    border-left-color: var(--series-tesera);
+  }
+
+  .decision .out.buy {
+    border-left-color: var(--series-bgg);
+  }
+
+  .decision .out .yes {
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+
+  .decision .no {
+    color: var(--muted);
+    font-size: 0.8rem;
+    padding-left: 12px;
+  }
+
+  .decision .last {
+    align-self: flex-start;
+  }
+
+  .chart-xl {
+    height: 560px;
+  }
+
+  @media (max-width: 560px) {
+    .flowline {
+      flex-direction: column;
+    }
+
+    .flowline .link span:first-child {
+      transform: rotate(90deg);
+    }
+
+    .decision .step {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<script>
+  import data from '../../data/supply-chain.json';
+  import { mountCharts, int, mln } from '../../scripts/charts';
+
+  mountCharts((init, { C, base, axis }) => {
+    const narrow = window.innerWidth < 560;
+    const dm = (s: string) => s.slice(8, 10) + '.' + s.slice(5, 7);
+    const stageColor: Record<string, string> = { 'Распределение': C.series[0], 'Закуп': C.series[1], 'Поставщик': C.muted };
+    const money = (x: number) => mln(x) + ' млн ₽';
+
+    // потери по причинам: цвет - этап, тёмная часть - весь день без товара, светлая - закончился за день
+    const K = data.causes;
+    init('chart-causes').setOption({
+      ...base,
+      legend: { top: 0, textStyle: { color: C.muted }, itemWidth: 12, itemHeight: 10 },
+      grid: { left: narrow ? 140 : 180, right: 56, top: 32, bottom: 24 },
+      tooltip: { ...base.tooltip, trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: money },
+      xAxis: { ...axis, type: 'value', axisLabel: { color: C.muted, formatter: (x: number) => mln(x, 0) } },
+      yAxis: { ...axis, type: 'category', inverse: true, data: K.map((c) => c.outcome), splitLine: { show: false },
+        axisLabel: { color: C.text, fontSize: narrow ? 11 : 12 } },
+      series: [
+        { name: 'весь день без товара', type: 'bar', stack: 'k', itemStyle: { color: C.text },
+          data: K.map((c) => ({ value: c.empty, itemStyle: { color: stageColor[c.stage] } })) },
+        { name: 'закончился за день', type: 'bar', stack: 'k', itemStyle: { color: C.muted, opacity: 0.45 },
+          data: K.map((c) => ({ value: c.soldout, itemStyle: { color: stageColor[c.stage], opacity: 0.45 } })),
+          label: { show: true, position: 'right', color: C.muted, formatter: (p: any) => mln(K[p.dataIndex].empty + K[p.dataIndex].soldout, 0) } },
+      ],
+    });
+
+    // по неделям, сложено по этапам
+    const Wk = data.weekly as Record<string, any>;
+    const stages = ['Распределение', 'Закуп', 'Поставщик'];
+    init('chart-weekly').setOption({
+      ...base,
+      legend: { top: 0, textStyle: { color: C.muted }, itemWidth: 12, itemHeight: 10 },
+      grid: { left: 44, right: 12, top: 36, bottom: 28 },
+      tooltip: { ...base.tooltip, trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: money },
+      xAxis: { ...axis, type: 'category', data: Wk.weeks.map(dm), splitLine: { show: false }, axisLabel: { color: C.muted } },
+      yAxis: { ...axis, type: 'value', axisLabel: { color: C.muted, formatter: (x: number) => mln(x, 0) } },
+      series: stages.map((st) => ({ name: st, type: 'bar', stack: 'w', data: Wk[st], itemStyle: { color: stageColor[st] } })),
+    });
+
+    // сквозная картина по товару: три панели с общей осью дат
+    const E = data.example as any;
+    const whs = Object.keys(E.warehouses);
+    const orderDates: string[] = E.orders.map((o: any) => o[0]);
+    const byDate = (i: number) => E.dates.map((d: string) => { const k = orderDates.indexOf(d); return k < 0 ? null : E.orders[k][i]; });
+    const whColor = [C.series[0], C.series[1], C.series[3]];
+    const top = narrow ? 64 : 40;
+    init('chart-chain').setOption({
+      ...base,
+      legend: [
+        { top: 0, left: 0, data: ['заказано', 'подтвердил поставщик'], textStyle: { color: C.muted }, itemWidth: 12, itemHeight: 10 },
+        { top: narrow ? 22 : 0, right: 0, data: whs, textStyle: { color: C.muted }, itemWidth: 12, itemHeight: 4 },
+      ],
+      tooltip: { ...base.tooltip, trigger: 'axis' },
+      axisPointer: { link: [{ xAxisIndex: 'all' }] },
+      grid: [
+        { left: 48, right: 12, top: top + 24, height: '18%' },
+        { left: 48, right: 12, top: '42%', height: '22%' },
+        { left: 48, right: 12, top: '74%', bottom: 28 },
+      ],
+      xAxis: [0, 1, 2].map((i) => ({ ...axis, type: 'category', gridIndex: i, data: E.dates.map(dm), splitLine: { show: false },
+        axisLabel: { color: C.muted, show: i === 2, interval: 13 } })),
+      yAxis: ['закуп у поставщика, шт.', 'остаток склада, шт.', 'магазинов в дефиците'].map((name, i) => ({
+        ...axis, type: 'value', gridIndex: i, minInterval: 1, name, nameTextStyle: { color: C.muted, align: 'left' },
+        axisLabel: { color: C.muted, formatter: (x: number) => int(x) } })),
+      series: [
+        { name: 'заказано', type: 'bar', xAxisIndex: 0, yAxisIndex: 0, data: byDate(1), barWidth: 5, itemStyle: { color: C.muted } },
+        { name: 'подтвердил поставщик', type: 'bar', xAxisIndex: 0, yAxisIndex: 0, data: byDate(2), barWidth: 5, itemStyle: { color: C.accent } },
+        ...whs.flatMap((w, i) => [
+          { name: w, type: 'line', xAxisIndex: 1, yAxisIndex: 1, showSymbol: false, data: E.warehouses[w].stock,
+            lineStyle: { color: whColor[i], width: 2 }, itemStyle: { color: whColor[i] } },
+          { name: w, type: 'line', xAxisIndex: 2, yAxisIndex: 2, showSymbol: false, step: 'middle', data: E.warehouses[w].deficit,
+            lineStyle: { color: whColor[i], width: 2 }, itemStyle: { color: whColor[i] } },
+        ]),
+      ],
+    });
+  });
+</script>

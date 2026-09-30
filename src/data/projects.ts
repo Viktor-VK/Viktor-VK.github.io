@@ -68,5 +68,8 @@ export const projects: Project[] = [
       'Движение товара от поставщика через склады до магазинов по дням: недельный закуп, сроки доставки, ежедневное пополнение магазинов. Для каждого дефицита - на каком этапе цепочки возникла проблема: у поставщика, в закупе или в распределении.',
     tags: ['Python', 'SQL', 'DuckDB', 'симуляция', 'цепь поставок'],
     status: 'wip',
+    page: '/projects/supply-chain/',
+    pageLabel: 'Смотреть расчёт',
+    code: 'https://github.com/Viktor-VK/portfolio/tree/supply-chain/' + encodeURIComponent('Сквозной анализ цепи поставок'),
   },
 ];
